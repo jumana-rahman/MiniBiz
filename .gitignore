@@ -10,3 +10,5 @@ logs/
 *.log
 .tmp-*
 SRS.md
+
+/app/generated/prisma
