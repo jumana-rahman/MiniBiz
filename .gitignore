@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+build/
+.cache/
+.env*
+*.tsbuildinfo
+*-debug.log*
+logs/
+*.log
+.tmp-*
+SRS.md
