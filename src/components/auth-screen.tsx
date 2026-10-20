@@ -2,17 +2,55 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import { authClient } from "@/lib/auth-client"
 import { routes } from "./data"
 import { Icon } from "./icon"
 import { Badge, BrandMark, Button, Field } from "./ui"
 
 export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const router = useRouter()
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!error) router.push(routes.dashboard)
+    setError(null)
+    setLoading(true)
+    const formData = new FormData(e.currentTarget)
+    try {
+      if (mode === "login") {
+        const email = formData.get("email") as string
+        const password = formData.get("password") as string
+        const res = await authClient.signIn.email({ email, password })
+        if (res.error) {
+          setError(res.error.message || "Sign in failed")
+        } else {
+          router.push(routes.dashboard)
+        }
+      } else {
+        const name = formData.get("name") as string
+        const email = formData.get("email") as string
+        const password = formData.get("password") as string
+        const companyName = formData.get("company") as string
+        const res = await authClient.signUp.email({ email, password, name })
+        if (res.error) {
+          setError(res.error.message || "Sign up failed")
+        } else {
+          try {
+            await fetch("/api/auth/register-company", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ companyName }),
+            })
+          } catch {}
+          router.push(routes.dashboard)
+        }
+      }
+    } catch (err) {
+      setError("An unexpected error occurred")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -67,8 +105,8 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             <div className="error-banner">
               <Icon name="alert" />
               <span>
-                <strong>We couldn’t sign you in.</strong>
-                <small>Check your email and password, then try again.</small>
+                <strong>Authentication error</strong>
+                <small>{error}</small>
               </span>
             </div>
           )}
@@ -76,7 +114,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             {mode === "register" && (
               <>
                 <Field label="Your name">
-                  <input placeholder="Alex Morgan" />
+                  <input name="name" placeholder="Alex Morgan" />
                 </Field>
                 <Field label="Company name">
                   <input placeholder="Acme & Bloom" />
@@ -118,7 +156,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
               <button
                 type="button"
                 className="demo-error-link"
-                onClick={() => setError(!error)}
+                onClick={() => setError(error ? null : 'Preview error state')}
               >
                 Preview error state
               </button>
