@@ -132,37 +132,28 @@ export default function DashboardPage() {
           </div>
           <div className="activity-list">
             <article className="activity-item">
-              <span className="activity-dot" />
-              <div>
-                <strong>Customers</strong>
-                <p>
-                  {data?.usage
-                    ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)}`
-                    : "—"}
-                </p>
-              </div>
+              <strong>Customers</strong>
+              <p>
+                {data?.usage
+                  ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)}`
+                  : "—"}
+              </p>
             </article>
             <article className="activity-item">
-              <span className="activity-dot" />
-              <div>
-                <strong>Invoices</strong>
-                <p>
-                  {data?.usage
-                    ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)}`
-                    : "—"}
-                </p>
-              </div>
+              <strong>Invoices</strong>
+              <p>
+                {data?.usage
+                  ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)}`
+                  : "—"}
+              </p>
             </article>
             <article className="activity-item">
-              <span className="activity-dot" />
-              <div>
-                <strong>Team seats</strong>
-                <p>
-                  {data?.usage
-                    ? `${data.usage.seats.used} / ${formatLimit(data.usage.seats.limit)}`
-                    : "—"}
-                </p>
-              </div>
+              <strong>Team seats</strong>
+              <p>
+                {data?.usage
+                  ? `${data.usage.seats.used} / ${formatLimit(data.usage.seats.limit)}`
+                  : "—"}
+              </p>
             </article>
           </div>
         </section>
