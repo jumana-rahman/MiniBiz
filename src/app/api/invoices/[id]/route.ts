@@ -101,7 +101,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        amount,
+        lineTotal: amount,
       };
     });
     const taxVal = tax !== undefined ? tax : existing.tax.toNumber();

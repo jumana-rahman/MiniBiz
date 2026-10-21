@@ -1319,6 +1319,7 @@ export const InvoiceScalarFieldEnum = {
   customerId: 'customerId',
   invoiceNumber: 'invoiceNumber',
   status: 'status',
+  invoiceDate: 'invoiceDate',
   issuedAt: 'issuedAt',
   lockedAt: 'lockedAt',
   subtotal: 'subtotal',
@@ -1340,7 +1341,7 @@ export const InvoiceItemScalarFieldEnum = {
   description: 'description',
   quantity: 'quantity',
   unitPrice: 'unitPrice',
-  amount: 'amount',
+  lineTotal: 'lineTotal',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

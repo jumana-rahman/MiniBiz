@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      amount,
+      lineTotal: amount,
     };
   });
 

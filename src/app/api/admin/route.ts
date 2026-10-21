@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const schema = z.object({
   companyId: z.string().min(1),
-  plan: z.enum(["TRIAL", "STARTER", "PRO", "ENTERPRISE"]),
+  plan: z.enum(["TRIAL", "BASIC", "PRO"]),
 });
 
 export async function GET(req: Request) {

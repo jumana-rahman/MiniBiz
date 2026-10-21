@@ -28,9 +28,8 @@ export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus]
 
 export const SubscriptionPlan = {
   TRIAL: 'TRIAL',
-  STARTER: 'STARTER',
-  PRO: 'PRO',
-  ENTERPRISE: 'ENTERPRISE'
+  BASIC: 'BASIC',
+  PRO: 'PRO'
 } as const
 
 export type SubscriptionPlan = (typeof SubscriptionPlan)[keyof typeof SubscriptionPlan]
