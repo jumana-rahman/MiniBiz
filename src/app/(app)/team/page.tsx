@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Icon } from "@/components/icon"
+import { Eye, Mail, Pencil, Plus, Settings, Trash2 } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import {
   Avatar,
@@ -12,6 +13,12 @@ import {
   Modal,
   PageIntro,
 } from "@/components/ui"
+import {
+  Pagination,
+  type PaginationState,
+} from "@/components/pagination"
+
+const PAGE_SIZE = 20
 
 type Member = {
   membershipId: string
@@ -37,12 +44,24 @@ export default function TeamPage() {
   const [inviteRole, setInviteRole] = useState("STAFF")
   const [inviteError, setInviteError] = useState("")
   const [inviting, setInviting] = useState(false)
+  const [page, setPage] = useState(1)
 
   const isOwner = role === "OWNER"
   const canManage = isOwner && !viewer
 
+  const pagination: PaginationState = {
+    page,
+    pageSize: PAGE_SIZE,
+    total: members.length,
+    totalPages: Math.max(1, Math.ceil(members.length / PAGE_SIZE)),
+  }
+  const visible = members.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  )
+
   const load = useCallback(() => {
-    if (!companyId) return
+    if (!companyId || role !== "OWNER") return
     setLoading(true)
     fetch(`/api/team?companyId=${companyId}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -51,7 +70,7 @@ export default function TeamPage() {
         setMembers(d?.members ?? [])
         setLoading(false)
       })
-  }, [companyId])
+  }, [companyId, role])
 
   useEffect(() => {
     load()
@@ -129,6 +148,37 @@ export default function TeamPage() {
     load()
   }
 
+  if (role === null) {
+    return (
+      <div className="page">
+        <PageIntro
+          title="Team"
+          text="Manage who can access your company workspace."
+        />
+        <section className="card table-card">
+          <EmptyState title="Loading..." text="Fetching your team." />
+        </section>
+      </div>
+    )
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="page">
+        <PageIntro
+          title="Team"
+          text="Manage who can access your company workspace."
+        />
+        <section className="card table-card">
+          <EmptyState
+            title="Owner access only"
+            text="Only the company Owner can view and manage team members and roles. Ask an Owner if you need access."
+          />
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <PageIntro
@@ -136,7 +186,7 @@ export default function TeamPage() {
         text="Manage who can access your company workspace."
         actions={
           canManage && (
-            <Button icon="plus" onClick={() => setModal(true)}>
+            <Button icon={Plus} onClick={() => setModal(true)}>
               Add member
             </Button>
           )
@@ -144,21 +194,21 @@ export default function TeamPage() {
       />
       <div className="role-cards">
         <div className="card">
-          <Icon name="settings" />
+          <Settings />
           <div>
             <strong>Owner</strong>
             <span>Full access, billing, and team management</span>
           </div>
         </div>
         <div className="card">
-          <Icon name="edit" />
+          <Pencil />
           <div>
             <strong>Staff</strong>
             <span>Can manage customers and invoices</span>
           </div>
         </div>
         <div className="card">
-          <Icon name="eye" />
+          <Eye />
           <div>
             <strong>Viewer</strong>
             <span>Read-only access to workspace data</span>
@@ -196,7 +246,7 @@ export default function TeamPage() {
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {visible.map((m) => (
                   <tr key={m.membershipId}>
                     <td>
                       <div className="person-cell">
@@ -240,7 +290,7 @@ export default function TeamPage() {
                           aria-label={`Remove ${m.email}`}
                           onClick={() => remove(m.membershipId)}
                         >
-                          <Icon name="trash" size={16} />
+                          <Trash2  size={16} />
                         </button>
                       )}
                     </td>
@@ -250,12 +300,17 @@ export default function TeamPage() {
             </table>
           </div>
         )}
+        <Pagination
+          state={pagination}
+          onPage={setPage}
+          label="members"
+        />
       </section>
 
       {modal && (
         <Modal
           title="Add team member"
-          icon="mail"
+          icon={Mail}
           onClose={() => {
             setModal(false)
             setInviteError("")
@@ -263,13 +318,9 @@ export default function TeamPage() {
         >
           <div className="modal-form">
             {inviteError && (
-              <div className="error-banner">
-                <Icon name="alert" size={16} />
-                <span>
-                  <strong>Could not add member</strong>
-                  <small>{inviteError}</small>
-                </span>
-              </div>
+              <ErrorBanner title="Could not add member">
+                {inviteError}
+              </ErrorBanner>
             )}
             <Field label="Email address">
               <input
@@ -304,7 +355,7 @@ export default function TeamPage() {
             >
               Cancel
             </Button>
-            <Button onClick={invite} disabled={inviting} icon="mail">
+            <Button onClick={invite} disabled={inviting} icon={Mail}>
               {inviting ? "Adding..." : "Add member"}
             </Button>
           </div>

@@ -1,57 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import "dotenv/config"
 import { prisma } from "@/lib/prisma"
+import { baseUrl, call, makeJar, signUp } from "./helpers/http"
 
-const BASE = process.env.MINIBIZ_BASE_URL ?? "http://localhost:3000"
+const BASE = baseUrl()
 
-type Jar = {
-  header: () => string
-  absorb: (res: Response) => void
-}
-
-function makeJar(): Jar {
-  const jar = new Map<string, string>()
-  return {
-    header: () => [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; "),
-    absorb(res) {
-      const raw = res.headers.getSetCookie?.() ?? []
-      for (const cookie of raw) {
-        const [pair] = cookie.split(";")
-        const idx = pair.indexOf("=")
-        if (idx > 0) {
-          jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim())
-        }
-      }
-    },
-  }
-}
-
-type CallOptions = {
-  method?: string
-  body?: unknown
-}
-
-async function call(jar: Jar, path: string, options: CallOptions = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      Origin: BASE,
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(jar.header() ? { Cookie: jar.header() } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    redirect: "manual",
-  })
-  jar.absorb(res)
-  const text = await res.text()
-  let json: any = null
-  try {
-    json = JSON.parse(text)
-  } catch {
-    json = null
-  }
-  return { status: res.status, json, text }
-}
+type Jar = ReturnType<typeof makeJar>
 
 let serverUp = false
 
@@ -64,38 +18,12 @@ beforeAll(async () => {
   }
   if (!serverUp) {
     console.warn(
-      `\n[api.test.ts] No server at ${BASE}. Run "npm run dev" first, then "npm run test:e2e".\n`,
+      `\n[api.test.ts] No server at ${BASE}. Run "npm run test:e2e" to start one automatically.\n`,
     )
   }
 })
 
 const stamp = Date.now()
-
-async function signUp(
-  jar: Jar,
-  name: string,
-  email: string,
-  password: string,
-  companyName: string,
-) {
-  const res = await call(jar, "/api/auth/sign-up/email", {
-    method: "POST",
-    body: { name, email, password },
-  })
-  if (res.status !== 200 && res.status !== 201) {
-    throw new Error(`sign-up failed for ${email}: ${res.status} ${res.text}`)
-  }
-  const company = await call(jar, "/api/auth/register-company", {
-    method: "POST",
-    body: { companyName },
-  })
-  if (!company.json?.companyId) {
-    throw new Error(
-      `register-company failed for ${email}: ${company.status} ${company.text}`,
-    )
-  }
-  return company.json.companyId as string
-}
 
 describe.runIf(process.env.MINIBIZ_E2E === "1")(
   "MiniBiz API (live server)",

@@ -3,7 +3,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { getPlanLimits, PLAN_LIMITS } from "@/lib/subscription"
+import { getPlanLimits, PLAN_LIMITS } from "@/lib/plans"
 import { SubscriptionPlan } from "@/generated/prisma/enums"
 
 const schema = z.object({
@@ -33,11 +33,30 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   })
 
+  // Usage is derived from the live rows so the console can never show a
+  // number that disagrees with the data behind it.
+  const [customerRows, invoiceRows] = await Promise.all([
+    prisma.customer.groupBy({
+      by: ["companyId"],
+      _count: { _all: true },
+    }),
+    prisma.invoice.groupBy({
+      by: ["companyId"],
+      _count: { _all: true },
+    }),
+  ])
+  const customersByCompany = new Map(
+    customerRows.map((r) => [r.companyId, r._count._all]),
+  )
+  const invoicesByCompany = new Map(
+    invoiceRows.map((r) => [r.companyId, r._count._all]),
+  )
+
   const rows = companies.map((c) => {
     const limits = getPlanLimits(c.subscriptionPlan)
     const owner = c.memberships.find((m) => m.role === "OWNER")
-    const customersUsed = c.customersCount
-    const invoicesUsed = c.invoicesCount
+    const customersUsed = customersByCompany.get(c.id) ?? 0
+    const invoicesUsed = invoicesByCompany.get(c.id) ?? 0
     const atLimit =
       customersUsed >= limits.customers || invoicesUsed >= limits.invoices
     return {

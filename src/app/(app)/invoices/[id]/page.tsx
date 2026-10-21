@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
+import { ChevronLeft, Lock, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import {
   Badge,
@@ -236,7 +237,7 @@ export default function InvoiceDetailPage() {
         type="button"
         onClick={() => router.push(routes.invoices)}
       >
-        <Icon name="arrow" />
+        <ChevronLeft />
         Back to invoices
       </button>
       <PageIntro
@@ -252,7 +253,7 @@ export default function InvoiceDetailPage() {
             {!locked && !readOnly && !editing && (
               <Button
                 kind="secondary"
-                icon="edit"
+                icon={Pencil}
                 onClick={() => setEditing(true)}
               >
                 Edit draft
@@ -262,7 +263,7 @@ export default function InvoiceDetailPage() {
               <Button onClick={() => setIssueModal(true)}>Issue invoice</Button>
             )}
             {!locked && !readOnly && (role === "OWNER" || role === "STAFF") && (
-              <Button kind="danger" icon="trash" onClick={remove}>
+              <Button kind="danger" icon={Trash2} onClick={remove}>
                 Delete
               </Button>
             )}
@@ -270,17 +271,11 @@ export default function InvoiceDetailPage() {
         }
       />
       {error && (
-        <div className="error-banner">
-          <Icon name="alert" size={16} />
-          <span>
-            <strong>Action failed</strong>
-            <small>{error}</small>
-          </span>
-        </div>
+        <ErrorBanner title="Action failed">{error}</ErrorBanner>
       )}
       {locked ? (
         <div className="locked-banner">
-          <Icon name="lock" />
+          <Lock />
           <div>
             <strong>This invoice is issued and locked</strong>
             <span>
@@ -291,7 +286,7 @@ export default function InvoiceDetailPage() {
         </div>
       ) : (
         <div className="locked-banner">
-          <Icon name="edit" />
+          <Pencil />
           <div>
             <strong>This invoice is a draft</strong>
             <span>It can still be edited until it is issued.</span>
@@ -379,13 +374,13 @@ export default function InvoiceDetailPage() {
                       setItems((prev) => prev.filter((_, i) => i !== index))
                     }
                   >
-                    <Icon name="trash" size={16} />
+                    <Trash2  size={16} />
                   </button>
                 </div>
               ))}
               <Button
                 kind="secondary"
-                icon="plus"
+                icon={Plus}
                 onClick={() =>
                   setItems((prev) => [
                     ...prev,
@@ -544,7 +539,7 @@ export default function InvoiceDetailPage() {
       {issueModal && (
         <Modal
           title="Issue this invoice?"
-          icon="alert"
+          icon={TriangleAlert}
           onClose={() => setIssueModal(false)}
         >
           <p>
@@ -552,7 +547,7 @@ export default function InvoiceDetailPage() {
             and can no longer be edited.
           </p>
           <div className="modal-note">
-            <Icon name="lock" />
+            <Lock />
             <span>
               Total due:{" "}
               <strong>{money(invoice.total, invoice.currency)}</strong>

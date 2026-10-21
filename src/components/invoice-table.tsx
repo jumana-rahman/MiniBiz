@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Icon } from "./icon"
+import { Ellipsis } from "lucide-react"
+import { routes } from "@/lib/routes"
 import { Badge } from "./ui"
 
 type InvoiceRow = {
@@ -58,7 +59,7 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
             data.map((i) => (
               <tr
                 key={i.id}
-                onClick={() => router.push(`/invoices/${i.id}`)}
+                onClick={() => router.push(routes.invoiceDetail(i.id))}
                 className="clickable"
               >
                 <td>
@@ -84,7 +85,7 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
                 </td>
                 <td>
                   <button className="row-action" aria-label="Invoice actions">
-                    <Icon name="more" />
+                    <Ellipsis />
                   </button>
                 </td>
               </tr>

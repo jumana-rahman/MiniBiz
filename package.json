@@ -9,6 +9,7 @@
     "format": "oxfmt",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
+    "clean:test-data": "tsx scripts/clean-test-data.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node scripts/test-e2e.mjs"

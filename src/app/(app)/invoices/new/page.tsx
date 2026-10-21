@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
+import { ChevronLeft, Lock, Plus, Trash2, TriangleAlert } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import { Button, Field, Modal, PageIntro } from "@/components/ui"
 import { routes } from "@/lib/routes"
@@ -27,6 +28,8 @@ export default function InvoiceFormPage() {
     new Date().toISOString().slice(0, 10),
   )
   const [notes, setNotes] = useState("")
+  const [tax, setTax] = useState("")
+  const [discount, setDiscount] = useState("")
   const [items, setItems] = useState<LineItem[]>([emptyItem()])
   const [modal, setModal] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -65,6 +68,10 @@ export default function InvoiceFormPage() {
       currency: "USD",
     })
 
+  const taxCents = toCents(Number.parseFloat(tax) || 0)
+  const discountCents = toCents(Number.parseFloat(discount) || 0)
+  const totalCents = subtotalCents + taxCents - discountCents
+
   const updateItem = (index: number, patch: Partial<LineItem>) => {
     setItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
@@ -77,6 +84,8 @@ export default function InvoiceFormPage() {
     invoiceNumber: invoiceNumber.trim(),
     invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
     notes: notes.trim() || undefined,
+    tax: Number.parseFloat(tax) || 0,
+    discount: Number.parseFloat(discount) || 0,
     items: items.map((item) => ({
       description: item.description.trim(),
       quantity: Number.parseFloat(item.quantity) || 0,
@@ -99,6 +108,14 @@ export default function InvoiceFormPage() {
       if (!Number.isFinite(price) || price < 0)
         return "Unit prices cannot be negative."
     }
+    const taxValue = Number.parseFloat(tax)
+    const discountValue = Number.parseFloat(discount)
+    if (tax && (!Number.isFinite(taxValue) || taxValue < 0))
+      return "Tax cannot be negative."
+    if (discount && (!Number.isFinite(discountValue) || discountValue < 0))
+      return "Discount cannot be negative."
+    if (discountCents > subtotalCents + taxCents)
+      return "The discount is larger than the invoice total."
     return null
   }
 
@@ -142,7 +159,7 @@ export default function InvoiceFormPage() {
           return
         }
         notify("Invoice issued and locked.")
-        router.push(`/invoices/${data.invoice.id}`)
+        router.push(routes.invoiceDetail(data.invoice.id))
         return
       }
 
@@ -162,7 +179,7 @@ export default function InvoiceFormPage() {
         type="button"
         onClick={() => router.push(routes.invoices)}
       >
-        <Icon name="arrow" />
+        <ChevronLeft />
         Back to invoices
       </button>
       <PageIntro
@@ -188,13 +205,7 @@ export default function InvoiceFormPage() {
         }
       />
       {error && (
-        <div className="error-banner">
-          <Icon name="alert" size={16} />
-          <span>
-            <strong>Could not save invoice</strong>
-            <small>{error}</small>
-          </span>
-        </div>
+        <ErrorBanner title="Could not save invoice">{error}</ErrorBanner>
       )}
       <div className="invoice-form-layout">
         <div>
@@ -235,6 +246,34 @@ export default function InvoiceFormPage() {
                   disabled={readOnly}
                   onChange={(e) => setInvoiceDate(e.target.value)}
                 />
+              </Field>
+              <Field label="Tax" hint="Added to the subtotal.">
+                <div className="money-input">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={tax}
+                    disabled={readOnly}
+                    onChange={(e) => setTax(e.target.value)}
+                  />
+                </div>
+              </Field>
+              <Field label="Discount" hint="Subtracted from the subtotal.">
+                <div className="money-input">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={discount}
+                    disabled={readOnly}
+                    onChange={(e) => setDiscount(e.target.value)}
+                  />
+                </div>
               </Field>
             </div>
           </section>
@@ -298,13 +337,13 @@ export default function InvoiceFormPage() {
                     setItems((prev) => prev.filter((_, i) => i !== index))
                   }
                 >
-                  <Icon name="trash" size={16} />
+                  <Trash2  size={16} />
                 </button>
               </div>
             ))}
             <Button
               kind="secondary"
-              icon="plus"
+              icon={Plus}
               disabled={readOnly}
               onClick={() => setItems((prev) => [...prev, emptyItem()])}
             >
@@ -332,11 +371,15 @@ export default function InvoiceFormPage() {
           </div>
           <div>
             <span>Tax</span>
-            <strong>$0.00</strong>
+            <strong>{money(taxCents)}</strong>
+          </div>
+          <div>
+            <span>Discount</span>
+            <strong>-{money(discountCents)}</strong>
           </div>
           <div className="preview-total">
             <span>Total due</span>
-            <strong>{money(subtotalCents)}</strong>
+            <strong>{money(totalCents)}</strong>
           </div>
           <small>
             Totals are recalculated on the server when the invoice is saved.
@@ -357,7 +400,7 @@ export default function InvoiceFormPage() {
       {modal && (
         <Modal
           title="Issue this invoice?"
-          icon="alert"
+          icon={TriangleAlert}
           onClose={() => setModal(false)}
         >
           <p>
@@ -365,9 +408,9 @@ export default function InvoiceFormPage() {
             be locked and can no longer be edited.
           </p>
           <div className="modal-note">
-            <Icon name="lock" />
+            <Lock />
             <span>
-              Total due: <strong>{money(subtotalCents)}</strong>
+              Total due: <strong>{money(totalCents)}</strong>
               <br />
               <small>
                 Issued to {selectedCustomer?.name ?? "the selected customer"}

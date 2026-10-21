@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
+import { Plus, Search } from "lucide-react"
 import { useShell } from "@/components/shell"
 import { Avatar, Button, EmptyState, PageIntro } from "@/components/ui"
+import { Pagination, type PaginationState } from "@/components/pagination"
 import { routes } from "@/lib/routes"
 
 type CustomerRow = {
@@ -15,29 +16,46 @@ type CustomerRow = {
   address: string | null
 }
 
+const emptyPagination: PaginationState = {
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  totalPages: 1,
+}
+
 export default function CustomersPage() {
   const router = useRouter()
   const { viewer, companyId } = useShell()
   const [customers, setCustomers] = useState<CustomerRow[]>([])
+  const [pagination, setPagination] = useState(emptyPagination)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     if (!companyId) return
-    fetch(`/api/customers?companyId=${companyId}`)
+    setLoading(true)
+    const params = new URLSearchParams({ companyId, page: String(page) })
+    if (query) params.set("q", query)
+    fetch(`/api/customers?${params}`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((data) => {
         if (data?.customers) setCustomers(data.customers)
+        if (data?.pagination) setPagination(data.pagination)
         setLoading(false)
       })
-  }, [companyId])
+  }, [companyId, page, query])
 
-  const filtered = customers.filter((c) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return `${c.name || ""} ${c.email || ""}`.toLowerCase().includes(q)
-  })
+  // Debounce the search box so every keystroke does not hit the API.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(search.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
 
   return (
     <div className="page">
@@ -46,7 +64,7 @@ export default function CustomersPage() {
         text="Manage customer details and view their invoice history."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => router.push(routes.customerNew)}>
+            <Button icon={Plus} onClick={() => router.push(routes.customerNew)}>
               Add customer
             </Button>
           )
@@ -55,7 +73,7 @@ export default function CustomersPage() {
       <section className="card table-card">
         <div className="toolbar">
           <div className="search">
-            <Icon name="search" />
+            <Search />
             <input
               placeholder="Search customers..."
               value={search}
@@ -65,14 +83,14 @@ export default function CustomersPage() {
         </div>
         {loading ? (
           <EmptyState title="Loading..." text="Fetching customers." />
-        ) : filtered.length === 0 ? (
+        ) : customers.length === 0 ? (
           <EmptyState
             title="No customers yet"
             text="Add your first customer to start creating invoices."
             action={
               !viewer && (
                 <Button
-                  icon="plus"
+                  icon={Plus}
                   onClick={() => router.push(routes.customerNew)}
                 >
                   Add customer
@@ -88,15 +106,15 @@ export default function CustomersPage() {
                   <th>Customer</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th />
+                  <th>Invoice history</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
+                {customers.map((c) => (
                   <tr
                     key={c.id}
                     className="clickable"
-                    onClick={() => router.push(`/customers/${c.id}`)}
+                    onClick={() => router.push(routes.customerDetail(c.id))}
                   >
                     <td>
                       <div className="person-cell">
@@ -118,12 +136,7 @@ export default function CustomersPage() {
                     <td>{c.email}</td>
                     <td>{c.phone || "—"}</td>
                     <td>
-                      <button
-                        className="row-action"
-                        aria-label={`Open ${c.name}`}
-                      >
-                        <Icon name="more" />
-                      </button>
+                      <span className="muted">View invoices</span>
                     </td>
                   </tr>
                 ))}
@@ -131,11 +144,11 @@ export default function CustomersPage() {
             </table>
           </div>
         )}
-        <div className="pagination">
-          <span>
-            Showing {filtered.length} of {customers.length} customers
-          </span>
-        </div>
+        <Pagination
+          state={pagination}
+          onPage={setPage}
+          label="customers"
+        />
       </section>
     </div>
   )

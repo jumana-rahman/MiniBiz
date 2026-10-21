@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Icon, type IconName } from "@/components/icon"
+import type { LucideIcon } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
+import { Check, CreditCard, FileText, Users, UsersRound } from "lucide-react"
 import { useShell } from "@/components/shell"
 import { Button, Modal, PageIntro } from "@/components/ui"
 import { PLAN_CATALOG, formatLimit, planLabel, type PlanKey } from "@/lib/plans"
@@ -107,14 +109,14 @@ export default function SubscriptionPage() {
           <UsageCard
             label="Customers"
             usage={data?.usage.customers}
-            icon="users"
+            icon={Users}
           />
           <UsageCard
             label="Invoices"
             usage={data?.usage.invoices}
-            icon="file"
+            icon={FileText}
           />
-          <UsageCard label="Team seats" usage={data?.usage.seats} icon="team" />
+          <UsageCard label="Team seats" usage={data?.usage.seats} icon={UsersRound} />
         </div>
       </section>
       <section className="plans-section">
@@ -141,7 +143,7 @@ export default function SubscriptionPage() {
                   {plan.features.map((f) => (
                     <li key={f}>
                       <span>
-                        <Icon name="check" size={14} />
+                        <Check  size={14} />
                       </span>
                       {f}
                     </li>
@@ -167,7 +169,7 @@ export default function SubscriptionPage() {
       {target && (
         <Modal
           title="Change subscription plan"
-          icon="card"
+          icon={CreditCard}
           onClose={() => {
             setTarget(null)
             setError("")
@@ -180,13 +182,7 @@ export default function SubscriptionPage() {
             are blocked.
           </p>
           {error && (
-            <div className="error-banner">
-              <Icon name="alert" size={16} />
-              <span>
-                <strong>Could not change plan</strong>
-                <small>{error}</small>
-              </span>
-            </div>
+            <ErrorBanner title="Could not change plan">{error}</ErrorBanner>
           )}
           <div className="modal-note plan-note">
             <span>{planLabel(target)}</span>
@@ -225,11 +221,11 @@ export default function SubscriptionPage() {
 function UsageCard({
   label,
   usage,
-  icon,
+  icon: IconComponent,
 }: {
   label: string
   usage?: Usage
-  icon: IconName
+  icon: LucideIcon
 }) {
   const used = usage?.used ?? 0
   const limit = usage?.limit ?? 0
@@ -241,7 +237,7 @@ function UsageCard({
     <div className="card usage-card">
       <div className="usage-head">
         <span className="stat-icon">
-          <Icon name={icon} />
+          <IconComponent />
         </span>
         <span>{label}</span>
       </div>

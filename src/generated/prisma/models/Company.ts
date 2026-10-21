@@ -20,20 +20,8 @@ export type CompanyModel = runtime.Types.Result.DefaultSelection<Prisma.$Company
 
 export type AggregateCompany = {
   _count: CompanyCountAggregateOutputType | null
-  _avg: CompanyAvgAggregateOutputType | null
-  _sum: CompanySumAggregateOutputType | null
   _min: CompanyMinAggregateOutputType | null
   _max: CompanyMaxAggregateOutputType | null
-}
-
-export type CompanyAvgAggregateOutputType = {
-  customersCount: number | null
-  invoicesCount: number | null
-}
-
-export type CompanySumAggregateOutputType = {
-  customersCount: number | null
-  invoicesCount: number | null
 }
 
 export type CompanyMinAggregateOutputType = {
@@ -41,8 +29,6 @@ export type CompanyMinAggregateOutputType = {
   name: string | null
   slug: string | null
   subscriptionPlan: $Enums.SubscriptionPlan | null
-  customersCount: number | null
-  invoicesCount: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -52,8 +38,6 @@ export type CompanyMaxAggregateOutputType = {
   name: string | null
   slug: string | null
   subscriptionPlan: $Enums.SubscriptionPlan | null
-  customersCount: number | null
-  invoicesCount: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -63,31 +47,17 @@ export type CompanyCountAggregateOutputType = {
   name: number
   slug: number
   subscriptionPlan: number
-  customersCount: number
-  invoicesCount: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
 
-export type CompanyAvgAggregateInputType = {
-  customersCount?: true
-  invoicesCount?: true
-}
-
-export type CompanySumAggregateInputType = {
-  customersCount?: true
-  invoicesCount?: true
-}
-
 export type CompanyMinAggregateInputType = {
   id?: true
   name?: true
   slug?: true
   subscriptionPlan?: true
-  customersCount?: true
-  invoicesCount?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -97,8 +67,6 @@ export type CompanyMaxAggregateInputType = {
   name?: true
   slug?: true
   subscriptionPlan?: true
-  customersCount?: true
-  invoicesCount?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -108,8 +76,6 @@ export type CompanyCountAggregateInputType = {
   name?: true
   slug?: true
   subscriptionPlan?: true
-  customersCount?: true
-  invoicesCount?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -153,18 +119,6 @@ export type CompanyAggregateArgs<ExtArgs extends runtime.Types.Extensions.Intern
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
-   * Select which fields to average
-  **/
-  _avg?: CompanyAvgAggregateInputType
-  /**
-   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-   * 
-   * Select which fields to sum
-  **/
-  _sum?: CompanySumAggregateInputType
-  /**
-   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-   * 
    * Select which fields to find the minimum value
   **/
   _min?: CompanyMinAggregateInputType
@@ -195,8 +149,6 @@ export type CompanyGroupByArgs<ExtArgs extends runtime.Types.Extensions.Internal
   take?: number
   skip?: number
   _count?: CompanyCountAggregateInputType | true
-  _avg?: CompanyAvgAggregateInputType
-  _sum?: CompanySumAggregateInputType
   _min?: CompanyMinAggregateInputType
   _max?: CompanyMaxAggregateInputType
 }
@@ -206,13 +158,9 @@ export type CompanyGroupByOutputType = {
   name: string
   slug: string
   subscriptionPlan: $Enums.SubscriptionPlan
-  customersCount: number
-  invoicesCount: number
   createdAt: Date
   updatedAt: Date
   _count: CompanyCountAggregateOutputType | null
-  _avg: CompanyAvgAggregateOutputType | null
-  _sum: CompanySumAggregateOutputType | null
   _min: CompanyMinAggregateOutputType | null
   _max: CompanyMaxAggregateOutputType | null
 }
@@ -240,8 +188,6 @@ export type CompanyWhereInput = {
   name?: Prisma.StringFilter<"Company"> | string
   slug?: Prisma.StringFilter<"Company"> | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFilter<"Company"> | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFilter<"Company"> | number
-  invoicesCount?: Prisma.IntFilter<"Company"> | number
   createdAt?: Prisma.DateTimeFilter<"Company"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Company"> | Date | string
   memberships?: Prisma.MembershipListRelationFilter
@@ -254,8 +200,6 @@ export type CompanyOrderByWithRelationInput = {
   name?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   subscriptionPlan?: Prisma.SortOrder
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   memberships?: Prisma.MembershipOrderByRelationAggregateInput
@@ -271,8 +215,6 @@ export type CompanyWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.CompanyWhereInput | Prisma.CompanyWhereInput[]
   name?: Prisma.StringFilter<"Company"> | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFilter<"Company"> | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFilter<"Company"> | number
-  invoicesCount?: Prisma.IntFilter<"Company"> | number
   createdAt?: Prisma.DateTimeFilter<"Company"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Company"> | Date | string
   memberships?: Prisma.MembershipListRelationFilter
@@ -285,15 +227,11 @@ export type CompanyOrderByWithAggregationInput = {
   name?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   subscriptionPlan?: Prisma.SortOrder
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.CompanyCountOrderByAggregateInput
-  _avg?: Prisma.CompanyAvgOrderByAggregateInput
   _max?: Prisma.CompanyMaxOrderByAggregateInput
   _min?: Prisma.CompanyMinOrderByAggregateInput
-  _sum?: Prisma.CompanySumOrderByAggregateInput
 }
 
 export type CompanyScalarWhereWithAggregatesInput = {
@@ -304,8 +242,6 @@ export type CompanyScalarWhereWithAggregatesInput = {
   name?: Prisma.StringWithAggregatesFilter<"Company"> | string
   slug?: Prisma.StringWithAggregatesFilter<"Company"> | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanWithAggregatesFilter<"Company"> | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntWithAggregatesFilter<"Company"> | number
-  invoicesCount?: Prisma.IntWithAggregatesFilter<"Company"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Company"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Company"> | Date | string
 }
@@ -315,8 +251,6 @@ export type CompanyCreateInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipCreateNestedManyWithoutCompanyInput
@@ -329,8 +263,6 @@ export type CompanyUncheckedCreateInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipUncheckedCreateNestedManyWithoutCompanyInput
@@ -343,8 +275,6 @@ export type CompanyUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUpdateManyWithoutCompanyNestedInput
@@ -357,8 +287,6 @@ export type CompanyUncheckedUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUncheckedUpdateManyWithoutCompanyNestedInput
@@ -371,8 +299,6 @@ export type CompanyCreateManyInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -382,8 +308,6 @@ export type CompanyUpdateManyMutationInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -393,8 +317,6 @@ export type CompanyUncheckedUpdateManyInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -404,15 +326,8 @@ export type CompanyCountOrderByAggregateInput = {
   name?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   subscriptionPlan?: Prisma.SortOrder
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-}
-
-export type CompanyAvgOrderByAggregateInput = {
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
 }
 
 export type CompanyMaxOrderByAggregateInput = {
@@ -420,8 +335,6 @@ export type CompanyMaxOrderByAggregateInput = {
   name?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   subscriptionPlan?: Prisma.SortOrder
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -431,15 +344,8 @@ export type CompanyMinOrderByAggregateInput = {
   name?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   subscriptionPlan?: Prisma.SortOrder
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-}
-
-export type CompanySumOrderByAggregateInput = {
-  customersCount?: Prisma.SortOrder
-  invoicesCount?: Prisma.SortOrder
 }
 
 export type CompanyScalarRelationFilter = {
@@ -449,14 +355,6 @@ export type CompanyScalarRelationFilter = {
 
 export type EnumSubscriptionPlanFieldUpdateOperationsInput = {
   set?: $Enums.SubscriptionPlan
-}
-
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
 }
 
 export type CompanyCreateNestedOneWithoutMembershipsInput = {
@@ -506,8 +404,6 @@ export type CompanyCreateWithoutMembershipsInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   customers?: Prisma.CustomerCreateNestedManyWithoutCompanyInput
@@ -519,8 +415,6 @@ export type CompanyUncheckedCreateWithoutMembershipsInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutCompanyInput
@@ -548,8 +442,6 @@ export type CompanyUpdateWithoutMembershipsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customers?: Prisma.CustomerUpdateManyWithoutCompanyNestedInput
@@ -561,8 +453,6 @@ export type CompanyUncheckedUpdateWithoutMembershipsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customers?: Prisma.CustomerUncheckedUpdateManyWithoutCompanyNestedInput
@@ -574,8 +464,6 @@ export type CompanyCreateWithoutCustomersInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipCreateNestedManyWithoutCompanyInput
@@ -587,8 +475,6 @@ export type CompanyUncheckedCreateWithoutCustomersInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipUncheckedCreateNestedManyWithoutCompanyInput
@@ -616,8 +502,6 @@ export type CompanyUpdateWithoutCustomersInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUpdateManyWithoutCompanyNestedInput
@@ -629,8 +513,6 @@ export type CompanyUncheckedUpdateWithoutCustomersInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUncheckedUpdateManyWithoutCompanyNestedInput
@@ -642,8 +524,6 @@ export type CompanyCreateWithoutInvoicesInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipCreateNestedManyWithoutCompanyInput
@@ -655,8 +535,6 @@ export type CompanyUncheckedCreateWithoutInvoicesInput = {
   name: string
   slug: string
   subscriptionPlan?: $Enums.SubscriptionPlan
-  customersCount?: number
-  invoicesCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   memberships?: Prisma.MembershipUncheckedCreateNestedManyWithoutCompanyInput
@@ -684,8 +562,6 @@ export type CompanyUpdateWithoutInvoicesInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUpdateManyWithoutCompanyNestedInput
@@ -697,8 +573,6 @@ export type CompanyUncheckedUpdateWithoutInvoicesInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   subscriptionPlan?: Prisma.EnumSubscriptionPlanFieldUpdateOperationsInput | $Enums.SubscriptionPlan
-  customersCount?: Prisma.IntFieldUpdateOperationsInput | number
-  invoicesCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   memberships?: Prisma.MembershipUncheckedUpdateManyWithoutCompanyNestedInput
@@ -759,8 +633,6 @@ export type CompanySelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   name?: boolean
   slug?: boolean
   subscriptionPlan?: boolean
-  customersCount?: boolean
-  invoicesCount?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   memberships?: boolean | Prisma.Company$membershipsArgs<ExtArgs>
@@ -774,8 +646,6 @@ export type CompanySelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   name?: boolean
   slug?: boolean
   subscriptionPlan?: boolean
-  customersCount?: boolean
-  invoicesCount?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["company"]>
@@ -785,8 +655,6 @@ export type CompanySelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   name?: boolean
   slug?: boolean
   subscriptionPlan?: boolean
-  customersCount?: boolean
-  invoicesCount?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["company"]>
@@ -796,13 +664,11 @@ export type CompanySelectScalar = {
   name?: boolean
   slug?: boolean
   subscriptionPlan?: boolean
-  customersCount?: boolean
-  invoicesCount?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type CompanyOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "subscriptionPlan" | "customersCount" | "invoicesCount" | "createdAt" | "updatedAt", ExtArgs["result"]["company"]>
+export type CompanyOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "subscriptionPlan" | "createdAt" | "updatedAt", ExtArgs["result"]["company"]>
 export type CompanyInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   memberships?: boolean | Prisma.Company$membershipsArgs<ExtArgs>
   customers?: boolean | Prisma.Company$customersArgs<ExtArgs>
@@ -824,8 +690,6 @@ export type $CompanyPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     name: string
     slug: string
     subscriptionPlan: $Enums.SubscriptionPlan
-    customersCount: number
-    invoicesCount: number
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["company"]>
@@ -1258,8 +1122,6 @@ export interface CompanyFieldRefs {
   readonly name: Prisma.FieldRef<"Company", 'String'>
   readonly slug: Prisma.FieldRef<"Company", 'String'>
   readonly subscriptionPlan: Prisma.FieldRef<"Company", 'SubscriptionPlan'>
-  readonly customersCount: Prisma.FieldRef<"Company", 'Int'>
-  readonly invoicesCount: Prisma.FieldRef<"Company", 'Int'>
   readonly createdAt: Prisma.FieldRef<"Company", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Company", 'DateTime'>
 }

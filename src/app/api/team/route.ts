@@ -3,7 +3,7 @@ import { headers } from "next/headers"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getPlanLimits } from "@/lib/subscription"
+import { getPlanLimits } from "@/lib/plans"
 import { Role } from "@/generated/prisma/enums"
 
 const inviteSchema = z.object({
@@ -26,6 +26,10 @@ export async function GET(req: Request) {
     where: { userId: session.user.id, companyId },
   })
   if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+  // SRS 3.1 / 3.2 / 3.3 — team membership is an Owner-only area.
+  if (membership.role !== Role.OWNER) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

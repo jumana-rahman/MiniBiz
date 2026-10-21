@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getPlanLimits } from "@/lib/subscription"
+import { getPlanLimits } from "@/lib/plans"
 import { serializeInvoice } from "@/lib/serialize"
 import { InvoiceStatus, Role } from "@/generated/prisma/enums"
 

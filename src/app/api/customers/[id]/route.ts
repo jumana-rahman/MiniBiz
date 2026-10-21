@@ -66,20 +66,43 @@ export async function PUT(
   if (membership.role === Role.VIEWER) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  const existing = await prisma.customer.findFirst({ where: { id, companyId } })
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findFirst({ where: { id, companyId } })
+      if (!existing) {
+        return { status: 404 as const, error: "Not found" }
+      }
+      const customer = await tx.customer.update({
+        where: { id },
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.email !== undefined ? { email: data.email } : {}),
+          ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+          ...(data.address !== undefined
+            ? { address: data.address || null }
+            : {}),
+        },
+      })
+      return { status: 200 as const, customer }
+    })
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, {
+        status: result.status,
+      })
+    }
+    return NextResponse.json({ customer: result.customer })
+  } catch (e: any) {
+    if (e?.code === "P2002") {
+      return NextResponse.json({ error: "Customer already exists" }, {
+        status: 409,
+      })
+    }
+    console.error("customer update failed:", e)
+    return NextResponse.json({ error: "Failed to update customer" }, {
+      status: 500,
+    })
   }
-  const customer = await prisma.customer.update({
-    where: { id },
-    data: {
-      ...(data.name !== undefined ? { name: data.name } : {}),
-      ...(data.email !== undefined ? { email: data.email } : {}),
-      ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
-      ...(data.address !== undefined ? { address: data.address || null } : {}),
-    },
-  })
-  return NextResponse.json({ customer })
 }
 
 export async function DELETE(
@@ -105,12 +128,21 @@ export async function DELETE(
   if (membership.role !== Role.OWNER) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  const existing = await prisma.customer.findFirst({ where: { id, companyId } })
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
   try {
-    await prisma.customer.delete({ where: { id } })
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findFirst({ where: { id, companyId } })
+      if (!existing) {
+        return { status: 404 as const, error: "Not found" }
+      }
+      await tx.customer.delete({ where: { id } })
+      return { status: 200 as const, ok: true }
+    })
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, {
+        status: result.status,
+      })
+    }
+    return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.code === "P2003") {
       return NextResponse.json(
@@ -123,9 +155,4 @@ export async function DELETE(
       status: 500,
     })
   }
-  await prisma.company.update({
-    where: { id: companyId },
-    data: { customersCount: { decrement: 1 } },
-  })
-  return NextResponse.json({ ok: true })
 }

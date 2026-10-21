@@ -5,6 +5,7 @@ import { useShell } from "@/components/shell"
 import { Badge, Button, PageIntro, Stat } from "@/components/ui"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { CreditCard, FileText, Plus, TrendingUp, Users } from "lucide-react"
 import { formatLimit } from "@/lib/plans"
 
 type RecentInvoice = {
@@ -68,7 +69,7 @@ export default function DashboardPage() {
         actions={
           !viewer &&
           data?.role !== "VIEWER" && (
-            <Button icon="plus" onClick={() => router.push("/invoices/new")}>
+            <Button icon={Plus} onClick={() => router.push("/invoices/new")}>
               Create invoice
             </Button>
           )
@@ -83,7 +84,7 @@ export default function DashboardPage() {
               ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)} used`
               : ""
           }
-          icon="users"
+          icon={Users}
         />
         <Stat
           label="Draft invoices"
@@ -93,20 +94,20 @@ export default function DashboardPage() {
               ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)} used`
               : ""
           }
-          icon="file"
+          icon={FileText}
         />
         <Stat
           label="Issued value"
           value={loading ? "—" : issuedTotal}
           note={`${data?.stats?.issued ?? 0} issued invoices`}
-          icon="trend"
+          icon={TrendingUp}
           positive={(data?.stats?.issued ?? 0) > 0}
         />
         <Stat
           label="Current plan"
           value={plan}
           note="Multi-tenant workspace"
-          icon="card"
+          icon={CreditCard}
         />
       </div>
       <div className="dashboard-grid">

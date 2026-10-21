@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
+import { ChevronLeft } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import { Button, Field, PageIntro } from "@/components/ui"
 import { routes } from "@/lib/routes"
@@ -82,7 +83,7 @@ export default function CustomerFormPage() {
         type="button"
         onClick={() => router.push(routes.customers)}
       >
-        <Icon name="arrow" />
+        <ChevronLeft />
         Back to customers
       </button>
       <PageIntro
@@ -91,13 +92,9 @@ export default function CustomerFormPage() {
       />
       <form onSubmit={submit}>
         {errors.server && (
-          <div className="error-banner">
-            <Icon name="alert" size={16} />
-            <span>
-              <strong>Could not create customer</strong>
-              <small>{errors.server}</small>
-            </span>
-          </div>
+          <ErrorBanner title="Could not create customer">
+            {errors.server}
+          </ErrorBanner>
         )}
         <section className="card form-card">
           <div className="form-section-title">

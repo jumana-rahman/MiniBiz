@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Icon } from "@/components/icon"
+import { Building2, CreditCard, Search, TrendingUp, TriangleAlert } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import {
   Avatar,
@@ -12,7 +13,13 @@ import {
   PageIntro,
   Stat,
 } from "@/components/ui"
+import {
+  Pagination,
+  type PaginationState,
+} from "@/components/pagination"
 import { PLAN_CATALOG, formatLimit, type PlanKey } from "@/lib/plans"
+
+const PAGE_SIZE = 20
 
 type AdminCompany = {
   id: string
@@ -47,19 +54,33 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [planFilter, setPlanFilter] = useState("ALL")
+  const [page, setPage] = useState(1)
   const [target, setTarget] = useState<AdminCompany | null>(null)
   const [nextPlan, setNextPlan] = useState<PlanKey>("BASIC")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [restricted, setRestricted] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
     fetch("/api/admin")
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(r.statusText || "Failed")),
+      )
+      .catch((err) => {
+        if (err instanceof Error && err.message === "403") {
+          setRestricted(true)
+        } else {
+          setError("Could not load the platform console.")
+        }
+        setCompanies([])
+        setStats(null)
+      })
       .then((d) => {
-        setCompanies(d?.companies ?? [])
-        if (d?.stats) setStats(d.stats)
+        if (d) {
+          setCompanies(d.companies ?? [])
+          if (d.stats) setStats(d.stats)
+        }
         setLoading(false)
       })
   }, [])
@@ -79,6 +100,25 @@ export default function AdminPage() {
         .includes(q)
     })
   }, [companies, search, planFilter])
+
+  const pagination = useMemo<PaginationState>(() => {
+    const total = filtered.length
+    return {
+      page,
+      pageSize: PAGE_SIZE,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    }
+  }, [filtered.length, page])
+
+  const visible = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, planFilter])
 
   const openChange = (company: AdminCompany) => {
     setTarget(company)
@@ -117,7 +157,7 @@ export default function AdminPage() {
       <div className="admin-banner">
         <div>
           <span className="admin-mark">
-            <Icon name="building" />
+            <Building2 />
           </span>
           <div>
             <span className="eyebrow">Platform console</span>
@@ -126,40 +166,49 @@ export default function AdminPage() {
         </div>
         <Badge tone="blue">Separate workspace</Badge>
       </div>
-      <PageIntro
-        title="Company overview"
-        text="Monitor company accounts, subscription plans, and platform usage."
-      />
+      {restricted ? (
+        <section className="card">
+          <EmptyState
+            title="Super Admin access required"
+            text="This area is reserved for platform administrators. Your account does not have platform-level privileges, and the console data is not available to you."
+          />
+        </section>
+      ) : (
+        <>
+          <PageIntro
+            title="Company overview"
+            text="Monitor company accounts, subscription plans, and platform usage."
+          />
       <div className="stats-grid admin-stats">
         <Stat
           label="Total companies"
           value={String(stats?.totalCompanies ?? 0)}
           note={`${stats?.payingCompanies ?? 0} on a paid plan`}
-          icon="building"
+          icon={Building2}
         />
         <Stat
           label="Active trials"
           value={String(stats?.trialCompanies ?? 0)}
           note="Companies on the Trial plan"
-          icon="trend"
+          icon={TrendingUp}
         />
         <Stat
           label="Platform usage"
           value={String(stats?.totalInvoices ?? 0)}
           note={`${stats?.totalCustomers ?? 0} customers across all companies`}
-          icon="card"
+          icon={CreditCard}
         />
         <Stat
           label="Limit warnings"
           value={String(stats?.limitWarnings ?? 0)}
           note="Require attention"
-          icon="alert"
+          icon={TriangleAlert}
         />
       </div>
       <section className="card table-card">
         <div className="toolbar">
           <div className="search">
-            <Icon name="search" />
+            <Search />
             <input
               placeholder="Search company or owner..."
               value={search}
@@ -184,7 +233,7 @@ export default function AdminPage() {
             title="Loading..."
             text="Fetching registered companies."
           />
-        ) : filtered.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState
             title="No companies found"
             text="Adjust the search or plan filter to see more results."
@@ -204,7 +253,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, i) => (
+                {visible.map((c, i) => (
                   <tr key={c.id}>
                     <td>
                       <div className="person-cell">
@@ -280,17 +329,19 @@ export default function AdminPage() {
             </table>
           </div>
         )}
-        <div className="pagination">
-          <span>
-            Showing {filtered.length} of {companies.length} companies
-          </span>
-        </div>
+        <Pagination
+          state={pagination}
+          onPage={setPage}
+          label="companies"
+        />
       </section>
+        </>
+      )}
 
       {target && (
         <Modal
           title="Change subscription plan"
-          icon="card"
+          icon={CreditCard}
           onClose={() => {
             setTarget(null)
             setError("")
@@ -304,13 +355,7 @@ export default function AdminPage() {
             plan? The new limits take effect immediately for that company.
           </p>
           {error && (
-            <div className="error-banner">
-              <Icon name="alert" size={16} />
-              <span>
-                <strong>Could not change plan</strong>
-                <small>{error}</small>
-              </span>
-            </div>
+            <ErrorBanner title="Could not change plan">{error}</ErrorBanner>
           )}
           <div className="modal-form">
             <select

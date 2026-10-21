@@ -141,7 +141,6 @@ export async function PUT(
           const cents = lineTotalCents(item.quantity, toCents(item.unitPrice))
           subtotalCents += cents
           return {
-            invoiceId: id,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -236,10 +235,6 @@ export async function DELETE(
         return { status: 403 as const, error: "Invoice is locked" }
       }
       await tx.invoice.delete({ where: { id } })
-      await tx.company.update({
-        where: { id: companyId },
-        data: { invoicesCount: { decrement: 1 } },
-      })
       return { status: 200 as const, ok: true }
     })
     if ("error" in result) {

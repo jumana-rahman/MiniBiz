@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
 import { InvoiceTable } from "@/components/invoice-table"
 import { useShell } from "@/components/shell"
 import { Button, EmptyState, PageIntro } from "@/components/ui"
+import { Pagination, type PaginationState } from "@/components/pagination"
 import { routes } from "@/lib/routes"
 
 type InvoiceRow = {
@@ -23,25 +25,43 @@ const tabs = [
   { key: "ISSUED", label: "Issued" },
 ] as const
 
+const emptyPagination: PaginationState = {
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  totalPages: 1,
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
   const { viewer, companyId } = useShell()
   const [filter, setFilter] = useState<typeof tabs[number]["key"]>("ALL")
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
+  const [pagination, setPagination] = useState(emptyPagination)
+  const [counts, setCounts] = useState({ ALL: 0, DRAFT: 0, ISSUED: 0 })
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     if (!companyId) return
-    fetch(`/api/invoices?companyId=${companyId}`)
+    setLoading(true)
+    const params = new URLSearchParams({ companyId, page: String(page) })
+    if (filter !== "ALL") params.set("status", filter)
+    fetch(`/api/invoices?${params}`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((data) => {
         if (data?.invoices) setInvoices(data.invoices)
+        if (data?.pagination) setPagination(data.pagination)
+        if (data?.counts) setCounts(data.counts)
         setLoading(false)
       })
-  }, [companyId])
+  }, [companyId, page, filter])
 
-  const data = invoices.filter((i) => filter === "ALL" || i.status === filter)
+  const switchTab = (key: typeof tabs[number]["key"]) => {
+    setFilter(key)
+    setPage(1)
+  }
 
   return (
     <div className="page">
@@ -50,7 +70,7 @@ export default function InvoicesPage() {
         text="Create, issue, and track invoices for your customers."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => router.push(routes.invoiceNew)}>
+            <Button icon={Plus} onClick={() => router.push(routes.invoiceNew)}>
               Create invoice
             </Button>
           )
@@ -62,27 +82,34 @@ export default function InvoicesPage() {
             <button
               key={tab.key}
               className={filter === tab.key ? "active" : ""}
-              onClick={() => setFilter(tab.key)}
+              onClick={() => switchTab(tab.key)}
             >
               {tab.label}
-              <span>
-                {tab.key === "ALL"
-                  ? invoices.length
-                  : invoices.filter((i) => i.status === tab.key).length}
-              </span>
+              <span>{counts[tab.key]}</span>
             </button>
           ))}
         </div>
         {loading ? (
           <EmptyState title="Loading..." text="Fetching invoices." />
+        ) : invoices.length === 0 ? (
+          <EmptyState
+            title="No invoices yet"
+            text="Create your first invoice to start tracking revenue."
+            action={
+              !viewer && (
+                <Button
+                  icon={Plus}
+                  onClick={() => router.push(routes.invoiceNew)}
+                >
+                  Create invoice
+                </Button>
+              )
+            }
+          />
         ) : (
-          <InvoiceTable data={data} />
+          <InvoiceTable data={invoices} />
         )}
-        <div className="pagination">
-          <span>
-            Showing {data.length} of {invoices.length} invoices
-          </span>
-        </div>
+        <Pagination state={pagination} onPage={setPage} label="invoices" />
       </section>
     </div>
   )

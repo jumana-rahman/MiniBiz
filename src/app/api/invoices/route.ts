@@ -3,7 +3,8 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { getPlanLimits } from "@/lib/subscription"
+import { getPlanLimits } from "@/lib/plans"
+import { readPage, totalPages } from "@/lib/pagination"
 import { toCents, fromCents, lineTotalCents } from "@/lib/money"
 import { serializeInvoice } from "@/lib/serialize"
 import { Role, InvoiceStatus } from "@/generated/prisma/enums"
@@ -62,12 +63,46 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const customerId = searchParams.get("customerId")
-  const invoices = await prisma.invoice.findMany({
-    where: { companyId, ...(customerId ? { customerId } : {}) },
-    include: { customer: true, invoiceItems: true },
-    orderBy: { createdAt: "desc" },
+  const rawStatus = searchParams.get("status")
+  const status =
+    rawStatus === "DRAFT" || rawStatus === "ISSUED"
+      ? (rawStatus as InvoiceStatus)
+      : undefined
+  const { page, pageSize } = readPage(searchParams)
+  const where = {
+    companyId,
+    ...(customerId ? { customerId } : {}),
+    ...(status === "DRAFT" || status === "ISSUED" ? { status } : {}),
+  }
+  const [invoices, total, statusRows] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      include: { customer: true, invoiceItems: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.invoice.count({ where }),
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { companyId },
+      _count: { _all: true },
+    }),
+  ])
+  const counts = { ALL: total, DRAFT: 0, ISSUED: 0 }
+  for (const row of statusRows) {
+    if (row.status === "DRAFT") counts.DRAFT = row._count._all
+    if (row.status === "ISSUED") counts.ISSUED = row._count._all
+  }
+  if (status) {
+    // The tab badges always show company-wide totals.
+    counts.ALL = counts.DRAFT + counts.ISSUED
+  }
+  return NextResponse.json({
+    invoices: invoices.map(serializeInvoice),
+    counts,
+    pagination: { page, pageSize, total, totalPages: totalPages(total, pageSize) },
   })
-  return NextResponse.json({ invoices: invoices.map(serializeInvoice) })
 }
 
 export async function POST(req: Request) {
@@ -158,10 +193,6 @@ export async function POST(req: Request) {
         },
       },
       include: { invoiceItems: true, customer: true },
-    })
-    await prisma.company.update({
-      where: { id: companyId },
-      data: { invoicesCount: { increment: 1 } },
     })
     return NextResponse.json({ invoice: serializeInvoice(invoice) }, {
       status: 201,

@@ -3,7 +3,7 @@ import { headers } from "next/headers"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getPlanLimits } from "@/lib/subscription"
+import { getPlanLimits } from "@/lib/plans"
 import { Role, SubscriptionPlan } from "@/generated/prisma/enums"
 
 const schema = z.object({

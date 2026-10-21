@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
-import { Icon } from "./icon"
+import { Check, Eye } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { Badge, BrandMark, Button, Field } from "./ui"
 
 const routes = {
@@ -82,15 +83,15 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
           </p>
           <div className="auth-benefits">
             <span>
-              <Icon name="check" />
+              <Check />
               Issue professional invoices in minutes
             </span>
             <span>
-              <Icon name="check" />
+              <Check />
               Keep customer records in one place
             </span>
             <span>
-              <Icon name="check" />
+              <Check />
               Give your team the right level of access
             </span>
           </div>
@@ -115,13 +116,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
               : "Start your 14-day trial. No credit card required."}
           </p>
           {error && (
-            <div className="error-banner">
-              <Icon name="alert" />
-              <span>
-                <strong>Authentication error</strong>
-                <small>{error}</small>
-              </span>
-            </div>
+            <ErrorBanner title="Authentication error">{error}</ErrorBanner>
           )}
           <form onSubmit={submit}>
             {mode === "register" && (
@@ -149,7 +144,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword((v) => !v)}
                 >
-                  <Icon name="eye" />
+                  <Eye />
                 </button>
               </div>
             </Field>

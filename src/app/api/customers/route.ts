@@ -3,7 +3,8 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { getPlanLimits } from "@/lib/subscription"
+import { getPlanLimits } from "@/lib/plans"
+import { readPage, totalPages } from "@/lib/pagination"
 import { Role } from "@/generated/prisma/enums"
 
 const schema = z.object({
@@ -30,11 +31,32 @@ export async function GET(req: Request) {
   if (!membership) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  const customers = await prisma.customer.findMany({
-    where: { companyId },
-    orderBy: { createdAt: "desc" },
+  const { page, pageSize } = readPage(searchParams)
+  const q = searchParams.get("q")?.trim()
+  const where = {
+    companyId,
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  }
+  const [customers, total] = await Promise.all([
+    prisma.customer.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.customer.count({ where }),
+  ])
+  return NextResponse.json({
+    customers,
+    pagination: { page, pageSize, total, totalPages: totalPages(total, pageSize) },
   })
-  return NextResponse.json({ customers })
 }
 
 export async function POST(req: Request) {
@@ -79,10 +101,6 @@ export async function POST(req: Request) {
         phone: phone || null,
         address: address || null,
       },
-    })
-    await prisma.company.update({
-      where: { id: companyId },
-      data: { customersCount: { increment: 1 } },
     })
     return NextResponse.json({ customer }, { status: 201 })
   } catch (e: any) {

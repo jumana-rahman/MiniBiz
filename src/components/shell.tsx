@@ -1,5 +1,4 @@
 "use client"
-// ignore
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -11,22 +10,38 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { Icon } from "./icon"
+import type { LucideIcon } from "lucide-react"
+import {
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  Eye,
+  FileText,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  Users,
+  UsersRound,
+  X,
+  Check,
+} from "lucide-react"
 import { Avatar } from "./ui"
 import { authClient } from "@/lib/auth-client"
-import { formatLimit } from "@/lib/subscription"
+import { formatLimit } from "@/lib/plans"
 import { routes, type Screen } from "@/lib/routes"
 
 const nav: {
   id: Screen
   label: string
-  icon: "grid" | "users" | "file" | "team" | "card"
+  icon: LucideIcon
+  ownerOnly?: boolean
 }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "grid" },
-  { id: "customers", label: "Customers", icon: "users" },
-  { id: "invoices", label: "Invoices", icon: "file" },
-  { id: "team", label: "Team", icon: "team" },
-  { id: "subscription", label: "Subscription", icon: "card" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+  { id: "customers", label: "Customers", icon: Users },
+  { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "team", label: "Team", icon: UsersRound, ownerOnly: true },
+  { id: "subscription", label: "Subscription", icon: CreditCard },
 ]
 
 type ShellContextValue = {
@@ -150,6 +165,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const companyName = activeCompany?.name || "Workspace"
   const planName = activeCompany?.plan || "TRIAL"
+  const isOwner = activeCompany?.role === "OWNER"
+  const visibleNav = nav.filter((item) => !item.ownerOnly || isOwner)
   const userRole =
     activeCompany?.role === "OWNER"
       ? "Owner"
@@ -185,7 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => setSidebarOpen(false)}
               aria-label="Close menu"
             >
-              <Icon name="close" />
+              <X />
             </button>
           </div>
           <div className="workspace-card">
@@ -198,7 +215,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <strong>{companyName}</strong>
                   <small>{planName} plan</small>
                 </span>
-                <Icon name="chevron" size={14} />
+                <ChevronRight size={14} />
               </>
             )}
           </div>
@@ -221,34 +238,36 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           <nav className="main-nav">
             {!collapsed && <span className="nav-label">Workspace</span>}
-            {nav.map((item) => (
-              <Link
-                key={item.id}
-                href={routes[item.id]}
-                className={isActive(routes[item.id]) ? "active" : ""}
-                onClick={() => setSidebarOpen(false)}
-                title={item.label}
-              >
-                <Icon name={item.icon} />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            ))}
-            {!collapsed && (
-              <span className="nav-label nav-label-spaced">Manage</span>
-            )}
-            <button onClick={() => notify("Settings are coming soon.")}>
-              <Icon name="settings" />
-              {!collapsed && <span>Settings</span>}
-            </button>
+            {visibleNav.map((item) => {
+              const NavIcon = item.icon
+              return (
+                <Link
+                  key={item.id}
+                  href={routes[item.id]}
+                  className={isActive(routes[item.id]) ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                  title={item.label}
+                >
+                  <NavIcon />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              )
+            })}
             {isPlatformAdmin && (
-              <Link
-                href={routes.admin}
-                className={isActive(routes.admin) ? "active" : ""}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <Icon name="building" />
-                {!collapsed && <span>Super Admin</span>}
-              </Link>
+              <>
+                {!collapsed && (
+                  <span className="nav-label nav-label-spaced">Manage</span>
+                )}
+                <Link
+                  href={routes.admin}
+                  className={isActive(routes.admin) ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                  title="Super Admin"
+                >
+                  <Building2 />
+                  {!collapsed && <span>Super Admin</span>}
+                </Link>
+              </>
             )}
           </nav>
           <div className="sidebar-bottom">
@@ -276,14 +295,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="collapse-button sign-out"
               onClick={handleSignOut}
             >
-              <Icon name="arrow" />
+              <LogOut />
               {!collapsed && <span>Sign out</span>}
             </button>
             <button
               className="collapse-button"
               onClick={() => setCollapsed(!collapsed)}
             >
-              <Icon name={collapsed ? "chevron" : "arrow"} />
+              {collapsed ? <ChevronRight /> : <ChevronLeft />}
               {!collapsed && <span>Collapse sidebar</span>}
             </button>
           </div>
@@ -300,7 +319,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open menu"
               >
-                <Icon name="menu" />
+                <Menu />
               </button>
               <h1>
                 {pathname === "/"
@@ -341,16 +360,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </button>
                 </div>
               )}
-              <button className="icon-button" aria-label="Notifications">
-                <Icon name="bell" />
-              </button>
               <button className="user-menu">
                 <Avatar initials={initials} color="dark" />
                 <span>
                   <strong>{user?.name || user?.email || "User"}</strong>
                   <small>{viewer ? "Viewer" : userRole}</small>
                 </span>
-                <Icon name="chevron" size={14} />
+                <ChevronRight size={14} />
               </button>
             </div>
           </header>
@@ -358,7 +374,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main className="content">
             {viewer && (
               <div className="viewer-banner">
-                <Icon name="eye" />
+                <Eye />
                 <span>
                   <strong>Viewer mode</strong> — actions and editing are
                   disabled.
@@ -373,11 +389,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         {toast && (
           <div className="toast">
             <span className="toast-check">
-              <Icon name="check" size={15} />
+              <Check size={15} />
             </span>
             <span>{toast}</span>
             <button onClick={() => setToast("")}>
-              <Icon name="close" size={15} />
+              <X size={15} />
             </button>
           </div>
         )}

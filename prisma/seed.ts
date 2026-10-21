@@ -13,6 +13,7 @@
 import "dotenv/config"
 import { prisma } from "../src/lib/prisma"
 import { auth } from "../src/lib/auth"
+import { toCents, fromCents, lineTotalCents } from "../src/lib/money"
 import {
   Role,
   InvoiceStatus,
@@ -109,13 +110,28 @@ async function ensureInvoice(
   })
   if (existing) return existing
 
-  const subtotal = seed.items.reduce(
-    (sum, item) => sum + item.quantity * item.unitPrice,
-    0,
-  )
+  // Integer-cent arithmetic only (SRS FR-022) — the seeded totals must match
+  // what the API calculates for the same line items.
+  let subtotalCents = 0
+  const lineItems = seed.items.map((item) => {
+    const unitPriceCents = toCents(item.unitPrice)
+    const lineTotal = fromCents(
+      lineTotalCents(item.quantity, unitPriceCents),
+    )
+    subtotalCents += lineTotalCents(item.quantity, unitPriceCents)
+    return {
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal,
+    }
+  })
   const tax = seed.tax ?? 0
   const discount = seed.discount ?? 0
-  const total = Math.round((subtotal + tax - discount) * 100) / 100
+  const subtotal = fromCents(subtotalCents)
+  const total = fromCents(
+    subtotalCents + toCents(tax) - toCents(discount),
+  )
   const now = new Date()
   const issued = seed.status === InvoiceStatus.ISSUED
 
@@ -135,12 +151,7 @@ async function ensureInvoice(
       currency: "USD",
       notes: seed.notes ?? null,
       invoiceItems: {
-        create: seed.items.map((item) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
-        })),
+        create: lineItems,
       },
     },
   })
@@ -307,18 +318,6 @@ async function main() {
       },
     ],
   })
-
-  // ------------------------------------------------------- derived counters
-  for (const company of [acme, lumen]) {
-    const [customersCount, invoicesCount] = await Promise.all([
-      prisma.customer.count({ where: { companyId: company.id } }),
-      prisma.invoice.count({ where: { companyId: company.id } }),
-    ])
-    await prisma.company.update({
-      where: { id: company.id },
-      data: { customersCount, invoicesCount },
-    })
-  }
 
   console.log("Seed complete.\n")
   console.log("  Demo accounts (password: %s)", PASSWORD)

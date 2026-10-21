@@ -1,17 +1,20 @@
+"use client"
+
 import type { ReactNode } from "react"
-import { Icon, type IconName } from "./icon"
+import type { LucideIcon } from "lucide-react"
+import { FileText, TrendingUp, X } from "lucide-react"
 
 export function Button({
   children,
   kind = "primary",
-  icon,
+  icon: IconComponent,
   onClick,
   type = "button",
   disabled = false,
 }: {
   children: ReactNode
   kind?: "primary" | "secondary" | "ghost" | "danger"
-  icon?: IconName
+  icon?: LucideIcon
   onClick?: () => void
   type?: "button" | "submit"
   disabled?: boolean
@@ -23,7 +26,7 @@ export function Button({
       type={type}
       disabled={disabled}
     >
-      {icon && <Icon name={icon} size={16} />}
+      {IconComponent && <IconComponent size={16} />}
       {children}
     </button>
   )
@@ -87,7 +90,7 @@ export function EmptyState({
   return (
     <div className="empty">
       <span className="empty-icon">
-        <Icon name="file" size={24} />
+        <FileText size={24} />
       </span>
       <h3>{title}</h3>
       <p>{text}</p>
@@ -123,13 +126,13 @@ export function Stat({
   label,
   value,
   note,
-  icon,
+  icon: IconComponent,
   positive,
 }: {
   label: string
   value: string
   note: string
-  icon: IconName
+  icon: LucideIcon
   positive?: boolean
 }) {
   return (
@@ -137,12 +140,12 @@ export function Stat({
       <div className="stat-top">
         <span>{label}</span>
         <span className="stat-icon">
-          <Icon name={icon} />
+          <IconComponent />
         </span>
       </div>
       <strong>{value}</strong>
       <small className={positive ? "positive" : ""}>
-        {positive && <Icon name="trend" size={13} />}
+        {positive && <TrendingUp size={13} />}
         {note}
       </small>
     </div>
@@ -151,12 +154,12 @@ export function Stat({
 
 export function Modal({
   title,
-  icon,
+  icon: IconComponent,
   onClose,
   children,
 }: {
   title: string
-  icon: IconName
+  icon: LucideIcon
   onClose: () => void
   children: ReactNode
 }) {
@@ -170,11 +173,11 @@ export function Modal({
       >
         <div className="modal-head">
           <span className="modal-icon">
-            <Icon name={icon} />
+            <IconComponent />
           </span>
           <h3>{title}</h3>
-          <button onClick={onClose}>
-            <Icon name="close" />
+          <button onClick={onClose} aria-label="Close dialog">
+            <X />
           </button>
         </div>
         {children}

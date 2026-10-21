@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
+import { ChevronLeft, Pencil, Plus, Trash2 } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import { InvoiceTable } from "@/components/invoice-table"
 import { Avatar, Button, EmptyState, PageIntro } from "@/components/ui"
@@ -163,7 +164,7 @@ export default function CustomerDetailPage() {
         type="button"
         onClick={() => router.push(routes.customers)}
       >
-        <Icon name="arrow" />
+        <ChevronLeft />
         Back to customers
       </button>
       <PageIntro
@@ -174,7 +175,7 @@ export default function CustomerDetailPage() {
             {!readOnly && !editing && (
               <Button
                 kind="secondary"
-                icon="edit"
+                icon={Pencil}
                 onClick={() => setEditing(true)}
               >
                 Edit customer
@@ -182,7 +183,7 @@ export default function CustomerDetailPage() {
             )}
             {!readOnly && !editing && (
               <Button
-                icon="plus"
+                icon={Plus}
                 onClick={() => router.push(routes.invoiceNew)}
               >
                 Create invoice
@@ -192,13 +193,7 @@ export default function CustomerDetailPage() {
         }
       />
       {error && (
-        <div className="error-banner">
-          <Icon name="alert" size={16} />
-          <span>
-            <strong>Could not save changes</strong>
-            <small>{error}</small>
-          </span>
-        </div>
+        <ErrorBanner title="Could not save changes">{error}</ErrorBanner>
       )}
       <div className="detail-grid">
         <section className="card detail-card">
@@ -276,7 +271,7 @@ export default function CustomerDetailPage() {
                 <div>
                   <span>Danger zone</span>
                   <strong>
-                    <Button kind="danger" icon="trash" onClick={remove}>
+                    <Button kind="danger" icon={Trash2} onClick={remove}>
                       Delete customer
                     </Button>
                   </strong>
