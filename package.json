@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node scripts/test-e2e.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
@@ -29,6 +34,7 @@
     "oxfmt": "^0.2.0",
     "prisma": "^7.10.1",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "vitest": "^5.0.5"
   }

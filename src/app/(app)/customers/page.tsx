@@ -5,11 +5,20 @@ import { useRouter } from "next/navigation"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Avatar, Button, EmptyState, PageIntro } from "@/components/ui"
+import { routes } from "@/lib/routes"
+
+type CustomerRow = {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  address: string | null
+}
 
 export default function CustomersPage() {
   const router = useRouter()
   const { viewer, companyId } = useShell()
-  const [customers, setCustomers] = useState<any[]>([])
+  const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
 
@@ -24,7 +33,7 @@ export default function CustomersPage() {
       })
   }, [companyId])
 
-  const filtered = customers.filter((c: any) => {
+  const filtered = customers.filter((c) => {
     if (!search) return true
     const q = search.toLowerCase()
     return `${c.name || ""} ${c.email || ""}`.toLowerCase().includes(q)
@@ -37,15 +46,15 @@ export default function CustomersPage() {
         text="Manage customer details and view their invoice history."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => router.push("/customers/new")}>
+            <Button icon="plus" onClick={() => router.push(routes.customerNew)}>
               Add customer
             </Button>
           )
         }
       />
-      <div className="panel">
-        <div className="panel-header">
-          <div className="search-field">
+      <section className="card table-card">
+        <div className="toolbar">
+          <div className="search">
             <Icon name="search" />
             <input
               placeholder="Search customers..."
@@ -55,17 +64,17 @@ export default function CustomersPage() {
           </div>
         </div>
         {loading ? (
-          <EmptyState
-            title="Loading..."
-            text="Fetching customers."
-          />
+          <EmptyState title="Loading..." text="Fetching customers." />
         ) : filtered.length === 0 ? (
           <EmptyState
             title="No customers yet"
             text="Add your first customer to start creating invoices."
             action={
               !viewer && (
-                <Button icon="plus" onClick={() => router.push("/customers/new")}>
+                <Button
+                  icon="plus"
+                  onClick={() => router.push(routes.customerNew)}
+                >
                   Add customer
                 </Button>
               )
@@ -83,32 +92,36 @@ export default function CustomersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c: any) => (
+                {filtered.map((c) => (
                   <tr
                     key={c.id}
                     className="clickable"
                     onClick={() => router.push(`/customers/${c.id}`)}
                   >
                     <td>
-                      <div className="customer-cell">
+                      <div className="person-cell">
                         <Avatar
                           initials={(c.name || "C")
                             .split(" ")
-                            .map((p: string) => p[0])
+                            .filter(Boolean)
+                            .map((p) => p[0])
                             .slice(0, 2)
                             .join("")
                             .toUpperCase()}
                           color="sage"
                         />
-                        <div>
+                        <span>
                           <strong>{c.name}</strong>
-                        </div>
+                        </span>
                       </div>
                     </td>
                     <td>{c.email}</td>
                     <td>{c.phone || "—"}</td>
                     <td>
-                      <button className="row-action">
+                      <button
+                        className="row-action"
+                        aria-label={`Open ${c.name}`}
+                      >
                         <Icon name="more" />
                       </button>
                     </td>
@@ -118,7 +131,12 @@ export default function CustomersPage() {
             </table>
           </div>
         )}
-      </div>
+        <div className="pagination">
+          <span>
+            Showing {filtered.length} of {customers.length} customers
+          </span>
+        </div>
+      </section>
     </div>
   )
 }

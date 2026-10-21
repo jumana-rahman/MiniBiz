@@ -4,11 +4,10 @@ out/
 build/
 .cache/
 .env*
+!.env.example
 *.tsbuildinfo
 *-debug.log*
 logs/
 *.log
 .tmp-*
 SRS.md
-
-/app/generated/prisma

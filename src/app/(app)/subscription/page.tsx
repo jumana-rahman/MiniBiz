@@ -1,13 +1,77 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Icon, type IconName } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Button, Modal, PageIntro } from "@/components/ui"
+import { PLAN_CATALOG, formatLimit, planLabel, type PlanKey } from "@/lib/plans"
+
+type Usage = {
+  used: number
+  limit: number
+}
+
+type SubscriptionData = {
+  company: { id: string; name: string; plan: string }
+  usage: { customers: Usage; invoices: Usage; seats: Usage }
+}
 
 export default function SubscriptionPage() {
-  const { notify } = useShell()
-  const [modal, setModal] = useState(false)
+  const { notify, companyId, viewer, role } = useShell()
+  const [data, setData] = useState<SubscriptionData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [target, setTarget] = useState<PlanKey | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const canChange = role === "OWNER" && !viewer
+
+  const load = useCallback(() => {
+    if (!companyId) return
+    setLoading(true)
+    fetch(`/api/dashboard?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        if (d) {
+          setData({ company: d.company, usage: d.usage })
+        }
+        setLoading(false)
+      })
+  }, [companyId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const currentPlan = (data?.company?.plan ?? "TRIAL") as PlanKey
+  const currentMeta = PLAN_CATALOG.find((p) => p.key === currentPlan)
+
+  const changePlan = async () => {
+    if (!companyId || !target) return
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch("/api/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, plan: target }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(payload?.error ?? "Failed to change plan.")
+        setSaving(false)
+        return
+      }
+      setData({ company: payload.company, usage: payload.usage })
+      setTarget(null)
+      setSaving(false)
+      notify(`Plan changed to ${planLabel(target)}.`)
+    } catch {
+      setError("Network error. Please try again.")
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="page">
@@ -18,44 +82,39 @@ export default function SubscriptionPage() {
       <section className="card current-plan">
         <div>
           <span className="eyebrow">Current plan</span>
-          <h3>Pro</h3>
-          <p>For growing teams with higher invoicing needs.</p>
+          <h3>{loading ? "—" : planLabel(currentPlan)}</h3>
+          <p>{currentMeta?.description ?? "Your active workspace plan."}</p>
         </div>
         <div className="plan-price">
-          <strong>$49</strong>
-          <span>/ month</span>
-          <Button kind="secondary" onClick={() => setModal(true)}>
-            Manage plan
-          </Button>
+          <strong>{currentMeta?.price ?? "$0"}</strong>
+          {currentMeta?.price !== "$0" && <span>/ month</span>}
+          {canChange && (
+            <Button kind="secondary" onClick={() => setTarget(currentPlan)}>
+              Manage plan
+            </Button>
+          )}
         </div>
       </section>
       <section className="usage-section">
         <div className="section-heading">
           <h3>Current usage</h3>
-          <p>Your usage resets on June 1, 2025.</p>
+          <p>
+            Limits are enforced on the server for every create and update
+            operation.
+          </p>
         </div>
         <div className="usage-grid">
-          <Usage
+          <UsageCard
             label="Customers"
-            value="48"
-            limit="Unlimited"
-            percent={14}
+            usage={data?.usage.customers}
             icon="users"
           />
-          <Usage
-            label="Monthly invoices"
-            value="18"
-            limit="250"
-            percent={7}
+          <UsageCard
+            label="Invoices"
+            usage={data?.usage.invoices}
             icon="file"
           />
-          <Usage
-            label="Team members"
-            value="4"
-            limit="10"
-            percent={40}
-            icon="team"
-          />
+          <UsageCard label="Team seats" usage={data?.usage.seats} icon="team" />
         </div>
       </section>
       <section className="plans-section">
@@ -64,64 +123,97 @@ export default function SubscriptionPage() {
           <p>Choose a plan that works for your business.</p>
         </div>
         <div className="plans-grid">
-          <Plan
-            name="Trial"
-            price="$0"
-            description="Explore the essentials for 14 days."
-            features={["5 customers", "5 invoices total", "1 team member"]}
-            button="Start trial"
-          />
-          <Plan
-            name="Basic"
-            price="$19"
-            description="For freelancers and small businesses."
-            features={["50 customers", "50 invoices / month", "3 team members"]}
-            button="Switch to Basic"
-          />
-          <Plan
-            name="Pro"
-            price="$49"
-            description="For established, growing teams."
-            features={[
-              "Unlimited customers",
-              "250 invoices / month",
-              "10 team members",
-            ]}
-            button="Current plan"
-            featured
-          />
+          {PLAN_CATALOG.map((plan) => {
+            const featured = plan.key === currentPlan
+            return (
+              <div
+                className={`card plan-card ${featured ? "featured" : ""}`}
+                key={plan.key}
+              >
+                {featured && <span className="current-tag">Current plan</span>}
+                <h3>{plan.name}</h3>
+                <div className="price">
+                  <strong>{plan.price}</strong>
+                  {plan.price !== "$0" && <span>/ month</span>}
+                </div>
+                <p>{plan.description}</p>
+                <ul>
+                  {plan.features.map((f) => (
+                    <li key={f}>
+                      <span>
+                        <Icon name="check" size={14} />
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  kind={featured ? "secondary" : "primary"}
+                  disabled={featured || !canChange}
+                  onClick={() => setTarget(plan.key)}
+                >
+                  {featured
+                    ? "Current plan"
+                    : canChange
+                      ? `Switch to ${plan.name}`
+                      : "Owner only"}
+                </Button>
+              </div>
+            )
+          })}
         </div>
       </section>
 
-      {modal && (
+      {target && (
         <Modal
           title="Change subscription plan"
           icon="card"
-          onClose={() => setModal(false)}
+          onClose={() => {
+            setTarget(null)
+            setError("")
+          }}
         >
           <p>
-            Switch this workspace to the <strong>Pro plan</strong>? The new
-            limits and billing will take effect immediately.
+            Switch this workspace to the <strong>{planLabel(target)}</strong>{" "}
+            plan? The new limits take effect immediately. Downgrading never
+            deletes existing records — new operations that exceed the new limits
+            are blocked.
           </p>
+          {error && (
+            <div className="error-banner">
+              <Icon name="alert" size={16} />
+              <span>
+                <strong>Could not change plan</strong>
+                <small>{error}</small>
+              </span>
+            </div>
+          )}
           <div className="modal-note plan-note">
-            <span>Pro</span>
+            <span>{planLabel(target)}</span>
             <span>
-              <strong>$49 / month</strong>
+              <strong>
+                {PLAN_CATALOG.find((p) => p.key === target)?.price} / month
+              </strong>
               <br />
-              <small>Unlimited customers · 250 invoices / month</small>
+              <small>
+                {PLAN_CATALOG.find((p) => p.key === target)?.features.join(
+                  " · ",
+                )}
+              </small>
             </span>
           </div>
           <div className="modal-actions">
-            <Button kind="secondary" onClick={() => setModal(false)}>
-              Cancel
-            </Button>
             <Button
+              kind="secondary"
               onClick={() => {
-                setModal(false)
-                notify("Subscription plan updated.")
+                setTarget(null)
+                setError("")
               }}
             >
-              Confirm change
+              Cancel
+            </Button>
+            <Button onClick={changePlan} disabled={saving}>
+              {saving ? "Updating..." : "Confirm change"}
             </Button>
           </div>
         </Modal>
@@ -130,19 +222,21 @@ export default function SubscriptionPage() {
   )
 }
 
-function Usage({
+function UsageCard({
   label,
-  value,
-  limit,
-  percent,
+  usage,
   icon,
 }: {
   label: string
-  value: string
-  limit: string
-  percent: number
+  usage?: Usage
   icon: IconName
 }) {
+  const used = usage?.used ?? 0
+  const limit = usage?.limit ?? 0
+  const percent =
+    limit >= Number.MAX_SAFE_INTEGER / 2
+      ? 0
+      : Math.min(100, limit === 0 ? 0 : (used / limit) * 100)
   return (
     <div className="card usage-card">
       <div className="usage-head">
@@ -151,52 +245,11 @@ function Usage({
         </span>
         <span>{label}</span>
       </div>
-      <strong>{value}</strong>
-      <small>of {limit}</small>
+      <strong>{used}</strong>
+      <small>of {formatLimit(limit)}</small>
       <div className="progress">
         <span style={{ width: `${percent}%` }} />
       </div>
-    </div>
-  )
-}
-
-function Plan({
-  name,
-  price,
-  description,
-  features,
-  button,
-  featured,
-}: {
-  name: string
-  price: string
-  description: string
-  features: string[]
-  button: string
-  featured?: boolean
-}) {
-  return (
-    <div className={`card plan-card ${featured ? "featured" : ""}`}>
-      {featured && <span className="current-tag">Current plan</span>}
-      <h3>{name}</h3>
-      <div className="price">
-        <strong>{price}</strong>
-        {price !== "$0" && <span>/ month</span>}
-      </div>
-      <p>{description}</p>
-      <ul>
-        {features.map((f) => (
-          <li key={f}>
-            <span>
-              <Icon name="check" size={14} />
-            </span>
-            {f}
-          </li>
-        ))}
-      </ul>
-      <Button kind={featured ? "secondary" : "primary"} disabled={featured}>
-        {button}
-      </Button>
     </div>
   )
 }

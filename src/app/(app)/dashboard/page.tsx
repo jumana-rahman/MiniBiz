@@ -1,18 +1,38 @@
 "use client"
 
 import { InvoiceTable } from "@/components/invoice-table"
-import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Badge, Button, PageIntro, Stat } from "@/components/ui"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { formatLimit } from "@/lib/subscription"
+import { formatLimit } from "@/lib/plans"
+
+type RecentInvoice = {
+  id: string
+  invoiceNumber: string
+  customer?: { name?: string } | null
+  invoiceDate?: string
+  total?: number
+  currency?: string
+  status: string
+}
 
 type DashboardData = {
   company: { id: string; name: string; slug: string; plan: string }
   role: string
-  stats: { customers: number; invoices: number; drafts: number; issued: number; issuedTotal: number }
-  usage: { customers: { used: number; limit: number }; invoices: { used: number; limit: number }; seats: { used: number; limit: number } }
+  stats: {
+    customers: number
+    invoices: number
+    drafts: number
+    issued: number
+    issuedTotal: number
+  }
+  usage: {
+    customers: { used: number; limit: number }
+    invoices: { used: number; limit: number }
+    seats: { used: number; limit: number }
+  }
+  recentInvoices: RecentInvoice[]
 }
 
 export default function DashboardPage() {
@@ -33,9 +53,12 @@ export default function DashboardPage() {
   }, [companyId])
 
   const companyName = data?.company?.name || "your business"
-  const firstName = (companyName.split(" ")[0] || "there")
+  const firstName = companyName.split(" ")[0] || "there"
   const plan = data?.company?.plan || "TRIAL"
-  const issuedTotal = (data?.stats?.issuedTotal ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" })
+  const issuedTotal = (data?.stats?.issuedTotal ?? 0).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+  })
 
   return (
     <div className="page">
@@ -43,7 +66,8 @@ export default function DashboardPage() {
         title={`Hello, ${firstName}`}
         text={`Here's what's happening with ${companyName} today.`}
         actions={
-          !viewer && data?.role !== "VIEWER" && (
+          !viewer &&
+          data?.role !== "VIEWER" && (
             <Button icon="plus" onClick={() => router.push("/invoices/new")}>
               Create invoice
             </Button>
@@ -54,13 +78,21 @@ export default function DashboardPage() {
         <Stat
           label="Total customers"
           value={loading ? "—" : String(data?.stats?.customers ?? 0)}
-          note={data?.usage ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)} used` : ""}
+          note={
+            data?.usage
+              ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)} used`
+              : ""
+          }
           icon="users"
         />
         <Stat
           label="Draft invoices"
           value={loading ? "—" : String(data?.stats?.drafts ?? 0)}
-          note={data?.usage ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)} used` : ""}
+          note={
+            data?.usage
+              ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)} used`
+              : ""
+          }
           icon="file"
         />
         <Stat
@@ -88,7 +120,7 @@ export default function DashboardPage() {
               View all
             </Button>
           </div>
-          <InvoiceTable data={[]} />
+          <InvoiceTable data={data?.recentInvoices ?? []} />
         </section>
         <section className="card">
           <div className="card-heading">
@@ -103,7 +135,9 @@ export default function DashboardPage() {
               <div>
                 <strong>Customers</strong>
                 <p>
-                  {data?.usage ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)}` : "—"}
+                  {data?.usage
+                    ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)}`
+                    : "—"}
                 </p>
               </div>
             </article>
@@ -112,7 +146,9 @@ export default function DashboardPage() {
               <div>
                 <strong>Invoices</strong>
                 <p>
-                  {data?.usage ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)}` : "—"}
+                  {data?.usage
+                    ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)}`
+                    : "—"}
                 </p>
               </div>
             </article>
@@ -121,7 +157,9 @@ export default function DashboardPage() {
               <div>
                 <strong>Team seats</strong>
                 <p>
-                  {data?.usage ? `${data.usage.seats.used} / ${formatLimit(data.usage.seats.limit)}` : "—"}
+                  {data?.usage
+                    ? `${data.usage.seats.used} / ${formatLimit(data.usage.seats.limit)}`
+                    : "—"}
                 </p>
               </div>
             </article>

@@ -2,16 +2,32 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Icon } from "@/components/icon"
 import { InvoiceTable } from "@/components/invoice-table"
 import { useShell } from "@/components/shell"
-import { Button, PageIntro } from "@/components/ui"
+import { Button, EmptyState, PageIntro } from "@/components/ui"
+import { routes } from "@/lib/routes"
+
+type InvoiceRow = {
+  id: string
+  invoiceNumber: string
+  customer?: { name?: string } | null
+  invoiceDate?: string
+  total?: number
+  currency?: string
+  status: string
+}
+
+const tabs = [
+  { key: "ALL", label: "All" },
+  { key: "DRAFT", label: "Draft" },
+  { key: "ISSUED", label: "Issued" },
+] as const
 
 export default function InvoicesPage() {
   const router = useRouter()
   const { viewer, companyId } = useShell()
-  const [filter, setFilter] = useState("All")
-  const [invoices, setInvoices] = useState<any[]>([])
+  const [filter, setFilter] = useState<typeof tabs[number]["key"]>("ALL")
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -25,9 +41,7 @@ export default function InvoicesPage() {
       })
   }, [companyId])
 
-  const data = invoices.filter(
-    (i: any) => filter === "All" || i.status === filter,
-  )
+  const data = invoices.filter((i) => filter === "ALL" || i.status === filter)
 
   return (
     <div className="page">
@@ -36,37 +50,40 @@ export default function InvoicesPage() {
         text="Create, issue, and track invoices for your customers."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => router.push("/invoices/new")}>
+            <Button icon="plus" onClick={() => router.push(routes.invoiceNew)}>
               Create invoice
             </Button>
           )
         }
       />
-      <div className="panel">
-        <div className="panel-header">
-          <div className="tab-group">
-            {["All", "Draft", "Issued"].map((tab) => (
-              <button
-                key={tab}
-                className={filter === tab ? "active" : ""}
-                onClick={() => setFilter(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+      <section className="card table-card">
+        <div className="tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              className={filter === tab.key ? "active" : ""}
+              onClick={() => setFilter(tab.key)}
+            >
+              {tab.label}
+              <span>
+                {tab.key === "ALL"
+                  ? invoices.length
+                  : invoices.filter((i) => i.status === tab.key).length}
+              </span>
+            </button>
+          ))}
         </div>
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+          <EmptyState title="Loading..." text="Fetching invoices." />
         ) : (
           <InvoiceTable data={data} />
         )}
-        <div className="panel-footer">
+        <div className="pagination">
           <span>
             Showing {data.length} of {invoices.length} invoices
           </span>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

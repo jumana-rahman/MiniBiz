@@ -1,22 +1,167 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Button, Field, Modal, PageIntro } from "@/components/ui"
+import { routes } from "@/lib/routes"
+import { toCents, fromCents, lineTotalCents } from "@/lib/money"
+
+type Customer = { id: string; name: string; email: string; address: string | null }
+type LineItem = { description: string; quantity: string; unitPrice: string }
+
+const emptyItem = (): LineItem => ({
+  description: "",
+  quantity: "1",
+  unitPrice: "",
+})
 
 export default function InvoiceFormPage() {
   const router = useRouter()
-  const { viewer, notify } = useShell()
-  const [items, setItems] = useState(2)
+  const { notify, companyId, viewer, role } = useShell()
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerId, setCustomerId] = useState("")
+  const [invoiceNumber, setInvoiceNumber] = useState("")
+  const [invoiceDate, setInvoiceDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  )
+  const [notes, setNotes] = useState("")
+  const [items, setItems] = useState<LineItem[]>([emptyItem()])
   const [modal, setModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
 
-  const go = (screen: Screen) => router.push(routes[screen])
+  const readOnly = viewer || role === "VIEWER"
+
+  useEffect(() => {
+    if (!companyId) return
+    fetch(`/api/customers?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        const list: Customer[] = d?.customers ?? []
+        setCustomers(list)
+        if (list.length > 0) setCustomerId(list[0].id)
+      })
+  }, [companyId])
+
+  const selectedCustomer = customers.find((c) => c.id === customerId)
+
+  const subtotalCents = useMemo(
+    () =>
+      items.reduce((sum, item) => {
+        const qty = Number.parseFloat(item.quantity) || 0
+        const price = Number.parseFloat(item.unitPrice) || 0
+        if (qty <= 0 || price < 0) return sum
+        return sum + lineTotalCents(qty, toCents(price))
+      }, 0),
+    [items],
+  )
+
+  const money = (cents: number) =>
+    fromCents(cents).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    })
+
+  const updateItem = (index: number, patch: Partial<LineItem>) => {
+    setItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    )
+  }
+
+  const buildPayload = () => ({
+    companyId,
+    customerId,
+    invoiceNumber: invoiceNumber.trim(),
+    invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
+    notes: notes.trim() || undefined,
+    items: items.map((item) => ({
+      description: item.description.trim(),
+      quantity: Number.parseFloat(item.quantity) || 0,
+      unitPrice: Number.parseFloat(item.unitPrice) || 0,
+    })),
+  })
+
+  const validate = (): string | null => {
+    if (!companyId) return "No company workspace is selected."
+    if (!customerId) return "Select a customer."
+    if (!invoiceNumber.trim()) return "Invoice number is required."
+    if (items.length === 0) return "Add at least one line item."
+    for (const item of items) {
+      if (!item.description.trim())
+        return "Every line item needs a description."
+      const qty = Number.parseFloat(item.quantity)
+      const price = Number.parseFloat(item.unitPrice)
+      if (!Number.isFinite(qty) || qty <= 0)
+        return "Quantities must be greater than zero."
+      if (!Number.isFinite(price) || price < 0)
+        return "Unit prices cannot be negative."
+    }
+    return null
+  }
+
+  const save = async (issue: boolean) => {
+    const validationError = validate()
+    if (validationError) {
+      setError(validationError)
+      setModal(false)
+      return
+    }
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to create invoice.")
+        setModal(false)
+        setSaving(false)
+        return
+      }
+
+      if (issue) {
+        const issueRes = await fetch(
+          `/api/invoices/${data.invoice.id}?companyId=${companyId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId, status: "ISSUED" }),
+          },
+        )
+        const issueData = await issueRes.json().catch(() => null)
+        if (!issueRes.ok) {
+          setError(issueData?.error ?? "Failed to issue invoice.")
+          setModal(false)
+          setSaving(false)
+          return
+        }
+        notify("Invoice issued and locked.")
+        router.push(`/invoices/${data.invoice.id}`)
+        return
+      }
+
+      notify("Draft invoice saved.")
+      router.push(routes.invoices)
+    } catch {
+      setError("Network error. Please try again.")
+      setModal(false)
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="page">
-      <button className="back-link" onClick={() => go("invoices")}>
+      <button
+        className="back-link"
+        type="button"
+        onClick={() => router.push(routes.invoices)}
+      >
         <Icon name="arrow" />
         Back to invoices
       </button>
@@ -26,42 +171,70 @@ export default function InvoiceFormPage() {
         text="Prepare an invoice, review the total, then issue it to your customer."
         actions={
           <>
-            <Button kind="secondary" onClick={() => go("invoices")}>
+            <Button
+              kind="secondary"
+              onClick={() => save(false)}
+              disabled={readOnly || saving}
+            >
               Save draft
             </Button>
-            <Button onClick={() => setModal(true)} disabled={viewer}>
-              Review & issue
+            <Button
+              onClick={() => setModal(true)}
+              disabled={readOnly || saving}
+            >
+              Review &amp; issue
             </Button>
           </>
         }
       />
+      {error && (
+        <div className="error-banner">
+          <Icon name="alert" size={16} />
+          <span>
+            <strong>Could not save invoice</strong>
+            <small>{error}</small>
+          </span>
+        </div>
+      )}
       <div className="invoice-form-layout">
         <div>
           <section className="card form-card">
             <div className="form-section-title">
               <h3>Invoice details</h3>
-              <p>Choose a customer and set the invoice dates.</p>
+              <p>Choose a customer and set the invoice date.</p>
             </div>
             <div className="form-grid">
               <Field label="Customer">
-                <select defaultValue="Northstar Coffee">
-                  <option>Northstar Coffee</option>
-                  <option>Brightline Studio</option>
-                  <option>Harbor &amp; Co.</option>
+                <select
+                  value={customerId}
+                  disabled={readOnly}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                >
+                  {customers.length === 0 && (
+                    <option value="">No customers yet</option>
+                  )}
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="Invoice number">
-                <input defaultValue="INV-0249" />
+                <input
+                  placeholder="INV-0001"
+                  value={invoiceNumber}
+                  disabled={readOnly}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                />
               </Field>
               <Field label="Issue date">
-                <input type="date" defaultValue="2025-06-10" />
-              </Field>
-              <Field label="Payment due">
-                <select defaultValue="14 days">
-                  <option>Due on receipt</option>
-                  <option>14 days</option>
-                  <option>30 days</option>
-                </select>
+                <input
+                  type="date"
+                  value={invoiceDate}
+                  disabled={readOnly}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
               </Field>
             </div>
           </section>
@@ -77,25 +250,54 @@ export default function InvoiceFormPage() {
               <span>Amount</span>
               <span />
             </div>
-            {Array.from({ length: items }).map((_, index) => (
+            {items.map((item, index) => (
               <div className="item-row" key={index}>
                 <input
-                  defaultValue={
-                    index === 0
-                      ? "Monthly design retainer"
-                      : "Additional design hours"
+                  placeholder="Description"
+                  value={item.description}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    updateItem(index, { description: e.target.value })
                   }
                 />
-                <input type="number" defaultValue={index === 0 ? 1 : 5} />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={item.quantity}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    updateItem(index, { quantity: e.target.value })
+                  }
+                />
                 <div className="money-input">
                   <span>$</span>
                   <input
                     type="number"
-                    defaultValue={index === 0 ? 3200 : 125}
+                    min="0"
+                    step="0.01"
+                    value={item.unitPrice}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      updateItem(index, { unitPrice: e.target.value })
+                    }
                   />
                 </div>
-                <strong>{index === 0 ? "$3,200.00" : "$625.00"}</strong>
-                <button onClick={() => items > 1 && setItems(items - 1)}>
+                <strong>
+                  {money(
+                    lineTotalCents(
+                      Number.parseFloat(item.quantity) || 0,
+                      toCents(Number.parseFloat(item.unitPrice) || 0),
+                    ),
+                  )}
+                </strong>
+                <button
+                  type="button"
+                  disabled={readOnly || items.length === 1}
+                  onClick={() =>
+                    setItems((prev) => prev.filter((_, i) => i !== index))
+                  }
+                >
                   <Icon name="trash" size={16} />
                 </button>
               </div>
@@ -103,7 +305,8 @@ export default function InvoiceFormPage() {
             <Button
               kind="secondary"
               icon="plus"
-              onClick={() => setItems(items + 1)}
+              disabled={readOnly}
+              onClick={() => setItems((prev) => [...prev, emptyItem()])}
             >
               Add line item
             </Button>
@@ -113,6 +316,9 @@ export default function InvoiceFormPage() {
               <textarea
                 rows={3}
                 placeholder="Add payment terms or a note for your customer..."
+                value={notes}
+                disabled={readOnly}
+                onChange={(e) => setNotes(e.target.value)}
               />
             </Field>
           </section>
@@ -122,27 +328,27 @@ export default function InvoiceFormPage() {
           <h3>Invoice summary</h3>
           <div>
             <span>Subtotal</span>
-            <strong>$3,825.00</strong>
+            <strong>{money(subtotalCents)}</strong>
           </div>
           <div>
             <span>Tax</span>
-            <button>+ Add tax</button>
+            <strong>$0.00</strong>
           </div>
           <div className="preview-total">
             <span>Total due</span>
-            <strong>$3,825.00</strong>
+            <strong>{money(subtotalCents)}</strong>
           </div>
-          <small>Amounts shown in USD</small>
+          <small>
+            Totals are recalculated on the server when the invoice is saved.
+          </small>
           <hr />
           <div className="customer-preview">
             <span>Billing to</span>
-            <strong>Northstar Coffee Ltd.</strong>
+            <strong>{selectedCustomer?.name ?? "—"}</strong>
             <p>
-              hello@northstar.co
+              {selectedCustomer?.email ?? ""}
               <br />
-              218 Mission Street
-              <br />
-              San Francisco, CA 94105
+              {selectedCustomer?.address ?? "No billing address on file"}
             </p>
           </div>
         </aside>
@@ -155,29 +361,25 @@ export default function InvoiceFormPage() {
           onClose={() => setModal(false)}
         >
           <p>
-            Once issued, <strong>INV-0249</strong> will be locked and can no
-            longer be edited. A copy will be sent to Northstar Coffee.
+            Once issued, <strong>{invoiceNumber || "this invoice"}</strong> will
+            be locked and can no longer be edited.
           </p>
           <div className="modal-note">
             <Icon name="lock" />
             <span>
-              Total due: <strong>$3,937.50</strong>
+              Total due: <strong>{money(subtotalCents)}</strong>
               <br />
-              <small>Payment due June 24, 2025</small>
+              <small>
+                Issued to {selectedCustomer?.name ?? "the selected customer"}
+              </small>
             </span>
           </div>
           <div className="modal-actions">
             <Button kind="secondary" onClick={() => setModal(false)}>
               Keep as draft
             </Button>
-            <Button
-              onClick={() => {
-                setModal(false)
-                notify("Invoice issued and sent successfully.")
-                go("invoice-detail")
-              }}
-            >
-              Issue invoice
+            <Button onClick={() => save(true)} disabled={saving}>
+              {saving ? "Issuing..." : "Issue invoice"}
             </Button>
           </div>
         </Modal>

@@ -16,6 +16,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -99,7 +100,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             “MiniBiz gives us exactly the structure we need without the usual
             software overhead.”
           </p>
-          <span>Alex Morgan · Acme &amp; Bloom</span>
+          <span>MiniBiz — multi-tenant business manager</span>
         </div>
       </div>
       <div className="auth-form-wrap">
@@ -134,22 +135,20 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
               </>
             )}
             <Field label="Work email">
-              <input
-                name="email"
-                type="email"
-                defaultValue={mode === "login" ? "alex@acmebloom.com" : ""}
-                placeholder="you@company.com"
-              />
+              <input name="email" type="email" placeholder="you@company.com" />
             </Field>
             <Field label="Password">
               <div className="password-field">
                 <input
                   name="password"
-                  type="password"
-                  defaultValue={mode === "login" ? "password123" : ""}
+                  type={showPassword ? "text" : "password"}
                   placeholder="At least 8 characters"
                 />
-                <button type="button">
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
                   <Icon name="eye" />
                 </button>
               </div>
@@ -160,29 +159,17 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
                   <input type="checkbox" defaultChecked />
                   Remember me
                 </label>
-                <button type="button">Forgot password?</button>
               </div>
             )}
             <Button type="submit">
               {mode === "login" ? "Sign in" : "Create company"}
             </Button>
-            {mode === "login" && (
-              <button
-                type="button"
-                className="demo-error-link"
-                onClick={() => setError(error ? null : 'Preview error state')}
-              >
-                Preview error state
-              </button>
-            )}
           </form>
           <p className="auth-switch">
             {mode === "login" ? "New to MiniBiz?" : "Already have an account?"}{" "}
             <button
               onClick={() =>
-                router.push(
-                  mode === "login" ? routes.register : routes.login,
-                )
+                router.push(mode === "login" ? routes.register : routes.login)
               }
             >
               {mode === "login" ? "Create a company" : "Sign in"}

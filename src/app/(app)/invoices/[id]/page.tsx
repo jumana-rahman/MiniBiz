@@ -1,136 +1,575 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { routes, type Screen } from "@/components/data"
+import { useCallback, useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { Icon } from "@/components/icon"
-import { Badge, BrandMark, Button, PageIntro } from "@/components/ui"
+import { useShell } from "@/components/shell"
+import {
+  Badge,
+  BrandMark,
+  Button,
+  EmptyState,
+  Field,
+  Modal,
+  PageIntro,
+} from "@/components/ui"
+import { routes } from "@/lib/routes"
+import { toCents, fromCents, lineTotalCents } from "@/lib/money"
+
+type InvoiceItem = {
+  id: string
+  description: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+type Invoice = {
+  id: string
+  invoiceNumber: string
+  status: string
+  invoiceDate: string
+  issuedAt: string | null
+  subtotal: number
+  tax: number
+  discount: number
+  total: number
+  currency: string
+  notes: string | null
+  customer: {
+    id: string
+    name: string
+    email: string
+    address: string | null
+  } | null
+  invoiceItems: InvoiceItem[]
+}
+
+type EditableItem = { description: string; quantity: string; unitPrice: string }
 
 export default function InvoiceDetailPage() {
   const router = useRouter()
+  const params = useParams<{ id: string }>()
+  const { notify, companyId, companyName, viewer, role } = useShell()
+  const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [items, setItems] = useState<EditableItem[]>([])
+  const [notes, setNotes] = useState("")
+  const [tax, setTax] = useState("0")
+  const [discount, setDiscount] = useState("0")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [issueModal, setIssueModal] = useState(false)
 
-  const go = (screen: Screen) => router.push(routes[screen])
+  const id = params?.id as string
+  const readOnly = viewer || role === "VIEWER"
+  const locked = invoice?.status === "ISSUED"
+
+  const load = useCallback(() => {
+    if (!companyId || !id) return
+    setLoading(true)
+    fetch(`/api/invoices/${id}?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        if (d?.invoice) {
+          setInvoice(d.invoice)
+          setItems(
+            d.invoice.invoiceItems.map((i: InvoiceItem) => ({
+              description: i.description,
+              quantity: String(i.quantity),
+              unitPrice: String(i.unitPrice),
+            })),
+          )
+          setNotes(d.invoice.notes ?? "")
+          setTax(String(d.invoice.tax ?? 0))
+          setDiscount(String(d.invoice.discount ?? 0))
+        } else {
+          setNotFound(true)
+        }
+        setLoading(false)
+      })
+  }, [companyId, id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const money = (amount: number, currency = "USD") =>
+    (amount ?? 0).toLocaleString("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+    })
+
+  const previewSubtotal = items.reduce((sum, item) => {
+    const qty = Number.parseFloat(item.quantity) || 0
+    const price = Number.parseFloat(item.unitPrice) || 0
+    if (qty <= 0 || price < 0) return sum
+    return sum + lineTotalCents(qty, toCents(price))
+  }, 0)
+  const previewTotal =
+    previewSubtotal +
+    toCents(Number.parseFloat(tax) || 0) -
+    toCents(Number.parseFloat(discount) || 0)
+
+  const save = async () => {
+    if (!invoice || !companyId) return
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(
+        `/api/invoices/${invoice.id}?companyId=${companyId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId,
+            notes,
+            tax: Number.parseFloat(tax) || 0,
+            discount: Number.parseFloat(discount) || 0,
+            items: items.map((item) => ({
+              description: item.description.trim(),
+              quantity: Number.parseFloat(item.quantity) || 0,
+              unitPrice: Number.parseFloat(item.unitPrice) || 0,
+            })),
+          }),
+        },
+      )
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to update invoice.")
+        setSaving(false)
+        return
+      }
+      setInvoice(data.invoice)
+      setEditing(false)
+      setSaving(false)
+      notify("Invoice updated.")
+    } catch {
+      setError("Network error. Please try again.")
+      setSaving(false)
+    }
+  }
+
+  const issue = async () => {
+    if (!invoice || !companyId) return
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(
+        `/api/invoices/${invoice.id}?companyId=${companyId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId, status: "ISSUED" }),
+        },
+      )
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to issue invoice.")
+        setIssueModal(false)
+        setSaving(false)
+        return
+      }
+      setInvoice(data.invoice)
+      setIssueModal(false)
+      setSaving(false)
+      notify("Invoice issued and locked.")
+    } catch {
+      setError("Network error. Please try again.")
+      setIssueModal(false)
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!invoice || !companyId) return
+    if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}?`)) return
+    const res = await fetch(
+      `/api/invoices/${invoice.id}?companyId=${companyId}`,
+      {
+        method: "DELETE",
+      },
+    )
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      notify(data?.error ?? "Failed to delete invoice.")
+      return
+    }
+    notify("Invoice deleted.")
+    router.push(routes.invoices)
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <EmptyState
+          title="Loading invoice..."
+          text="Fetching invoice details."
+        />
+      </div>
+    )
+  }
+
+  if (notFound || !invoice) {
+    return (
+      <div className="page">
+        <EmptyState
+          title="Invoice not found"
+          text="This invoice does not exist in your workspace."
+          action={
+            <Button onClick={() => router.push(routes.invoices)}>
+              Back to invoices
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="page">
-      <button className="back-link" onClick={() => go("invoices")}>
+      <button
+        className="back-link"
+        type="button"
+        onClick={() => router.push(routes.invoices)}
+      >
         <Icon name="arrow" />
         Back to invoices
       </button>
       <PageIntro
-        eyebrow="Issued May 24, 2025"
-        title="Invoice INV-0248"
-        text="Payment due June 7, 2025"
+        eyebrow={
+          locked
+            ? `Issued ${new Date(invoice.issuedAt ?? invoice.invoiceDate).toLocaleDateString()}`
+            : "Draft"
+        }
+        title={`Invoice ${invoice.invoiceNumber}`}
+        text={`Invoice date ${new Date(invoice.invoiceDate).toLocaleDateString()}`}
         actions={
           <>
-            <Button kind="secondary" icon="download">
-              Download PDF
-            </Button>
-            <Button kind="secondary" icon="mail">
-              Send again
-            </Button>
+            {!locked && !readOnly && !editing && (
+              <Button
+                kind="secondary"
+                icon="edit"
+                onClick={() => setEditing(true)}
+              >
+                Edit draft
+              </Button>
+            )}
+            {!locked && !readOnly && !editing && (
+              <Button onClick={() => setIssueModal(true)}>Issue invoice</Button>
+            )}
+            {!locked && !readOnly && (role === "OWNER" || role === "STAFF") && (
+              <Button kind="danger" icon="trash" onClick={remove}>
+                Delete
+              </Button>
+            )}
           </>
         }
       />
-      <div className="locked-banner">
-        <Icon name="lock" />
-        <div>
-          <strong>This invoice is issued and locked</strong>
+      {error && (
+        <div className="error-banner">
+          <Icon name="alert" size={16} />
           <span>
-            Issued invoices are read-only to preserve financial records.
+            <strong>Action failed</strong>
+            <small>{error}</small>
           </span>
         </div>
-        <Badge tone="green">Issued</Badge>
-      </div>
-      <section className="card invoice-paper">
-        <div className="invoice-brand">
-          <BrandMark label="MiniBiz" />
-          <div className="invoice-heading">
-            <span>INVOICE</span>
-            <strong>#INV-0248</strong>
-          </div>
-        </div>
-        <div className="invoice-parties">
+      )}
+      {locked ? (
+        <div className="locked-banner">
+          <Icon name="lock" />
           <div>
-            <span className="invoice-label">From</span>
-            <strong>Acme &amp; Bloom LLC</strong>
-            <p>
-              86 Greenpoint Avenue
-              <br />
-              Brooklyn, NY 11222
-              <br />
-              billing@acmebloom.com
-            </p>
-          </div>
-          <div>
-            <span className="invoice-label">Bill to</span>
-            <strong>Northstar Coffee Ltd.</strong>
-            <p>
-              218 Mission Street
-              <br />
-              San Francisco, CA 94105
-              <br />
-              hello@northstar.co
-            </p>
-          </div>
-          <div>
-            <span className="invoice-label">Invoice details</span>
-            <p>
-              <b>Issue date</b> May 24, 2025
-              <br />
-              <b>Due date</b> June 7, 2025
-              <br />
-              <b>Currency</b> USD
-            </p>
-          </div>
-        </div>
-        <div className="invoice-lines">
-          <div className="line-head">
-            <span>Description</span>
-            <span>Qty</span>
-            <span>Rate</span>
-            <span>Amount</span>
-          </div>
-          <div className="line-row">
+            <strong>This invoice is issued and locked</strong>
             <span>
-              <strong>Brand strategy workshop</strong>
-              <small>Full-day strategy and positioning session</small>
+              Issued invoices are read-only to preserve financial records.
             </span>
-            <span>1</span>
-            <span>$2,800.00</span>
-            <strong>$2,800.00</strong>
           </div>
-          <div className="line-row">
-            <span>
-              <strong>Visual identity refinement</strong>
-              <small>Logo system and brand guidelines updates</small>
-            </span>
-            <span>8</span>
-            <span>$185.00</span>
-            <strong>$1,480.00</strong>
-          </div>
+          <Badge tone="green">Issued</Badge>
         </div>
-        <div className="invoice-totals">
+      ) : (
+        <div className="locked-banner">
+          <Icon name="edit" />
           <div>
-            <span>Subtotal</span>
-            <strong>$4,280.00</strong>
+            <strong>This invoice is a draft</strong>
+            <span>It can still be edited until it is issued.</span>
           </div>
-          <div>
-            <span>Tax (0%)</span>
-            <strong>$0.00</strong>
-          </div>
-          <div className="total">
-            <span>Total due</span>
-            <strong>$4,280.00</strong>
-          </div>
+          <Badge tone="amber">Draft</Badge>
         </div>
-        <div className="invoice-note">
-          <strong>Payment details</strong>
+      )}
+
+      {editing ? (
+        <div className="invoice-form-layout">
+          <div>
+            <section className="card form-card">
+              <div className="form-section-title">
+                <h3>Line items</h3>
+                <p>Update the products or services included in this invoice.</p>
+              </div>
+              <div className="item-head">
+                <span>Description</span>
+                <span>Qty</span>
+                <span>Rate</span>
+                <span>Amount</span>
+                <span />
+              </div>
+              {items.map((item, index) => (
+                <div className="item-row" key={index}>
+                  <input
+                    value={item.description}
+                    onChange={(e) =>
+                      setItems((prev) =>
+                        prev.map((it, i) =>
+                          i === index
+                            ? { ...it, description: e.target.value }
+                            : it,
+                        ),
+                      )
+                    }
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={item.quantity}
+                    onChange={(e) =>
+                      setItems((prev) =>
+                        prev.map((it, i) =>
+                          i === index
+                            ? { ...it, quantity: e.target.value }
+                            : it,
+                        ),
+                      )
+                    }
+                  />
+                  <div className="money-input">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(e) =>
+                        setItems((prev) =>
+                          prev.map((it, i) =>
+                            i === index
+                              ? { ...it, unitPrice: e.target.value }
+                              : it,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <strong>
+                    {money(
+                      fromCents(
+                        lineTotalCents(
+                          Number.parseFloat(item.quantity) || 0,
+                          toCents(Number.parseFloat(item.unitPrice) || 0),
+                        ),
+                      ),
+                    )}
+                  </strong>
+                  <button
+                    type="button"
+                    disabled={items.length === 1}
+                    onClick={() =>
+                      setItems((prev) => prev.filter((_, i) => i !== index))
+                    }
+                  >
+                    <Icon name="trash" size={16} />
+                  </button>
+                </div>
+              ))}
+              <Button
+                kind="secondary"
+                icon="plus"
+                onClick={() =>
+                  setItems((prev) => [
+                    ...prev,
+                    { description: "", quantity: "1", unitPrice: "" },
+                  ])
+                }
+              >
+                Add line item
+              </Button>
+            </section>
+            <section className="card form-card">
+              <div className="form-grid">
+                <Field label="Tax">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={tax}
+                    onChange={(e) => setTax(e.target.value)}
+                  />
+                </Field>
+                <Field label="Discount">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="Notes">
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </Field>
+            </section>
+            <div className="form-actions">
+              <Button kind="secondary" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          </div>
+          <aside className="card total-preview">
+            <span className="eyebrow">Total preview</span>
+            <h3>Invoice summary</h3>
+            <div>
+              <span>Subtotal</span>
+              <strong>{money(fromCents(previewSubtotal))}</strong>
+            </div>
+            <div>
+              <span>Tax</span>
+              <strong>{money(Number.parseFloat(tax) || 0)}</strong>
+            </div>
+            <div>
+              <span>Discount</span>
+              <strong>-{money(Number.parseFloat(discount) || 0)}</strong>
+            </div>
+            <div className="preview-total">
+              <span>Total due</span>
+              <strong>{money(fromCents(previewTotal))}</strong>
+            </div>
+            <small>Totals are recalculated on the server when you save.</small>
+          </aside>
+        </div>
+      ) : (
+        <section className="card invoice-paper">
+          <div className="invoice-brand">
+            <BrandMark label="MiniBiz" />
+            <div className="invoice-heading">
+              <span>INVOICE</span>
+              <strong>#{invoice.invoiceNumber}</strong>
+            </div>
+          </div>
+          <div className="invoice-parties">
+            <div>
+              <span className="invoice-label">From</span>
+              <strong>{companyName ?? "MiniBiz workspace"}</strong>
+              <p>
+                Issued through MiniBiz
+                <br />
+                Workspace: {companyName ?? "—"}
+              </p>
+            </div>
+            <div>
+              <span className="invoice-label">Bill to</span>
+              <strong>{invoice.customer?.name ?? "—"}</strong>
+              <p>
+                {invoice.customer?.address ?? "No billing address on file"}
+                <br />
+                {invoice.customer?.email ?? ""}
+              </p>
+            </div>
+            <div>
+              <span className="invoice-label">Invoice details</span>
+              <p>
+                <b>Issue date</b>{" "}
+                {new Date(invoice.invoiceDate).toLocaleDateString()}
+                <br />
+                <b>Currency</b> {invoice.currency}
+                <br />
+                <b>Status</b> {locked ? "Issued" : "Draft"}
+              </p>
+            </div>
+          </div>
+          <div className="invoice-lines">
+            <div className="line-head">
+              <span>Description</span>
+              <span>Qty</span>
+              <span>Rate</span>
+              <span>Amount</span>
+            </div>
+            {invoice.invoiceItems.map((item) => (
+              <div className="line-row" key={item.id}>
+                <span>
+                  <strong>{item.description}</strong>
+                </span>
+                <span>{item.quantity}</span>
+                <span>{money(item.unitPrice, invoice.currency)}</span>
+                <strong>{money(item.lineTotal, invoice.currency)}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="invoice-totals">
+            <div>
+              <span>Subtotal</span>
+              <strong>{money(invoice.subtotal, invoice.currency)}</strong>
+            </div>
+            <div>
+              <span>Tax</span>
+              <strong>{money(invoice.tax, invoice.currency)}</strong>
+            </div>
+            <div>
+              <span>Discount</span>
+              <strong>-{money(invoice.discount, invoice.currency)}</strong>
+            </div>
+            <div className="total">
+              <span>Total due</span>
+              <strong>{money(invoice.total, invoice.currency)}</strong>
+            </div>
+          </div>
+          {invoice.notes && (
+            <div className="invoice-note">
+              <strong>Notes</strong>
+              <p>{invoice.notes}</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {issueModal && (
+        <Modal
+          title="Issue this invoice?"
+          icon="alert"
+          onClose={() => setIssueModal(false)}
+        >
           <p>
-            Please pay by bank transfer to the account listed in your service
-            agreement. Thank you for your business.
+            Once issued, <strong>{invoice.invoiceNumber}</strong> will be locked
+            and can no longer be edited.
           </p>
-        </div>
-      </section>
+          <div className="modal-note">
+            <Icon name="lock" />
+            <span>
+              Total due:{" "}
+              <strong>{money(invoice.total, invoice.currency)}</strong>
+              <br />
+              <small>Bill to {invoice.customer?.name ?? "customer"}</small>
+            </span>
+          </div>
+          <div className="modal-actions">
+            <Button kind="secondary" onClick={() => setIssueModal(false)}>
+              Keep as draft
+            </Button>
+            <Button onClick={issue} disabled={saving}>
+              {saving ? "Issuing..." : "Issue invoice"}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

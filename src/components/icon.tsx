@@ -1,31 +1,6 @@
 import type { ReactNode } from "react"
 
-export type IconName =
-  | "grid"
-  | "users"
-  | "file"
-  | "team"
-  | "card"
-  | "settings"
-  | "search"
-  | "plus"
-  | "menu"
-  | "bell"
-  | "chevron"
-  | "arrow"
-  | "more"
-  | "trend"
-  | "lock"
-  | "check"
-  | "building"
-  | "mail"
-  | "eye"
-  | "edit"
-  | "trash"
-  | "download"
-  | "close"
-  | "alert"
-  | "filter"
+export type IconName = "grid" | "users" | "file" | "team" | "card" | "settings" | "search" | "plus" | "menu" | "bell" | "chevron" | "arrow" | "more" | "trend" | "lock" | "check" | "building" | "mail" | "eye" | "edit" | "trash" | "download" | "close" | "alert" | "filter"
 
 const iconPaths: Record<IconName, ReactNode> = {
   grid: (
@@ -141,13 +116,7 @@ const iconPaths: Record<IconName, ReactNode> = {
   filter: <path d="M4 5h16l-6 7v6l-4 2v-8z" />,
 }
 
-export function Icon({
-  name,
-  size = 18,
-}: {
-  name: IconName
-  size?: number
-}) {
+export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
     <svg
       className="icon"

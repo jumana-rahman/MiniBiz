@@ -1,68 +1,116 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import {
   Avatar,
   Badge,
   Button,
+  EmptyState,
   Modal,
   PageIntro,
   Stat,
 } from "@/components/ui"
+import { PLAN_CATALOG, formatLimit, type PlanKey } from "@/lib/plans"
 
-const companies = [
-  [
-    "AB",
-    "Acme & Bloom",
-    "alex@acmebloom.com",
-    "Pro",
-    "48",
-    "18 / 250",
-    "Active",
-  ],
-  [
-    "NC",
-    "Northstar Coffee",
-    "maya@northstar.co",
-    "Basic",
-    "34",
-    "42 / 50",
-    "Active",
-  ],
-  [
-    "BL",
-    "Brightline Studio",
-    "hello@brightline.design",
-    "Trial",
-    "4",
-    "3 / 5",
-    "Trial",
-  ],
-  [
-    "FW",
-    "Fieldwork Labs",
-    "admin@fieldworklabs.io",
-    "Pro",
-    "126",
-    "86 / 250",
-    "Active",
-  ],
-  [
-    "HC",
-    "Harbor & Co.",
-    "ops@harborco.com",
-    "Basic",
-    "49",
-    "50 / 50",
-    "Limit reached",
-  ],
-]
+type AdminCompany = {
+  id: string
+  name: string
+  slug: string
+  plan: string
+  createdAt: string
+  ownerName: string
+  ownerEmail: string
+  memberCount: number
+  customersUsed: number
+  customersLimit: number
+  invoicesUsed: number
+  invoicesLimit: number
+  atLimit: boolean
+  status: string
+}
+
+type AdminStats = {
+  totalCompanies: number
+  trialCompanies: number
+  payingCompanies: number
+  limitWarnings: number
+  totalCustomers: number
+  totalInvoices: number
+}
 
 export default function AdminPage() {
   const { notify } = useShell()
-  const [modal, setModal] = useState(false)
+  const [companies, setCompanies] = useState<AdminCompany[]>([])
+  const [stats, setStats] = useState<AdminStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [planFilter, setPlanFilter] = useState("ALL")
+  const [target, setTarget] = useState<AdminCompany | null>(null)
+  const [nextPlan, setNextPlan] = useState<PlanKey>("BASIC")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch("/api/admin")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        setCompanies(d?.companies ?? [])
+        if (d?.stats) setStats(d.stats)
+        setLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return companies.filter((c) => {
+      const matchesPlan = planFilter === "ALL" || c.plan === planFilter
+      if (!matchesPlan) return false
+      if (!q) return true
+      return `${c.name} ${c.ownerName} ${c.ownerEmail}`
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [companies, search, planFilter])
+
+  const openChange = (company: AdminCompany) => {
+    setTarget(company)
+    setNextPlan(company.plan as PlanKey ?? "BASIC")
+    setError("")
+  }
+
+  const changePlan = async () => {
+    if (!target) return
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: target.id, plan: nextPlan }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to change plan.")
+        setSaving(false)
+        return
+      }
+      setTarget(null)
+      setSaving(false)
+      notify("Subscription plan updated.")
+      load()
+    } catch {
+      setError("Network error. Please try again.")
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="page admin-page">
@@ -85,27 +133,25 @@ export default function AdminPage() {
       <div className="stats-grid admin-stats">
         <Stat
           label="Total companies"
-          value="286"
-          note="+18 this month"
+          value={String(stats?.totalCompanies ?? 0)}
+          note={`${stats?.payingCompanies ?? 0} on a paid plan`}
           icon="building"
-          positive
         />
         <Stat
           label="Active trials"
-          value="34"
-          note="12 expire this week"
+          value={String(stats?.trialCompanies ?? 0)}
+          note="Companies on the Trial plan"
           icon="trend"
         />
         <Stat
-          label="Monthly revenue"
-          value="$9,842"
-          note="+8.2% vs. last month"
+          label="Platform usage"
+          value={String(stats?.totalInvoices ?? 0)}
+          note={`${stats?.totalCustomers ?? 0} customers across all companies`}
           icon="card"
-          positive
         />
         <Stat
           label="Limit warnings"
-          value="7"
+          value={String(stats?.limitWarnings ?? 0)}
           note="Require attention"
           icon="alert"
         />
@@ -114,122 +160,183 @@ export default function AdminPage() {
         <div className="toolbar">
           <div className="search">
             <Icon name="search" />
-            <input placeholder="Search company or owner..." />
+            <input
+              placeholder="Search company or owner..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          <Button kind="secondary" icon="filter">
-            All plans
-          </Button>
+          <select
+            className="table-select"
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+          >
+            <option value="ALL">All plans</option>
+            {PLAN_CATALOG.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Plan</th>
-                <th>Customers</th>
-                <th>Invoice usage</th>
-                <th>Status</th>
-                <th>Joined</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map((c, i) => (
-                <tr key={c[1]}>
-                  <td>
-                    <div className="person-cell">
-                      <Avatar initials={c[0]} color={i % 2 ? "blue" : "sage"} />
-                      <span>
-                        <strong>{c[1]}</strong>
-                        <small>{c[2]}</small>
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <Badge
-                      tone={
-                        c[3] === "Pro"
-                          ? "green"
-                          : c[3] === "Trial"
-                            ? "blue"
-                            : "neutral"
-                      }
-                    >
-                      {c[3]}
-                    </Badge>
-                  </td>
-                  <td>{c[4]}</td>
-                  <td>
-                    <div className="usage-cell">
-                      <strong>{c[5]}</strong>
-                      <div className="progress">
-                        <span
-                          className={
-                            c[6] === "Limit reached" ? "danger-progress" : ""
-                          }
-                          style={{
-                            width: `${Math.min(100, (parseInt(c[5].split(" / ")[0]) / parseInt(c[5].split(" / ")[1])) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <Badge tone={c[6] === "Limit reached" ? "amber" : "green"}>
-                      {c[6]}
-                    </Badge>
-                  </td>
-                  <td>May {20 - i}, 2025</td>
-                  <td>
-                    <Button kind="ghost" onClick={() => setModal(true)}>
-                      Change plan
-                    </Button>
-                  </td>
+        {loading ? (
+          <EmptyState
+            title="Loading..."
+            text="Fetching registered companies."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="No companies found"
+            text="Adjust the search or plan filter to see more results."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Plan</th>
+                  <th>Customers</th>
+                  <th>Invoice usage</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="pagination">
-          <span>Showing 1–5 of 286 companies</span>
-          <div>
-            <Button kind="secondary" disabled>
-              Previous
-            </Button>
-            <Button kind="secondary">Next</Button>
+              </thead>
+              <tbody>
+                {filtered.map((c, i) => (
+                  <tr key={c.id}>
+                    <td>
+                      <div className="person-cell">
+                        <Avatar
+                          initials={(c.name.slice(0, 2) || "CO").toUpperCase()}
+                          color={i % 2 ? "blue" : "sage"}
+                        />
+                        <span>
+                          <strong>{c.name}</strong>
+                          <small>{c.ownerEmail}</small>
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <Badge
+                        tone={
+                          c.plan === "PRO"
+                            ? "green"
+                            : c.plan === "TRIAL"
+                              ? "blue"
+                              : "neutral"
+                        }
+                      >
+                        {c.plan}
+                      </Badge>
+                    </td>
+                    <td>
+                      {c.customersUsed} / {formatLimit(c.customersLimit)}
+                    </td>
+                    <td>
+                      <div className="usage-cell">
+                        <strong>
+                          {c.invoicesUsed} / {formatLimit(c.invoicesLimit)}
+                        </strong>
+                        <div className="progress">
+                          <span
+                            className={c.atLimit ? "danger-progress" : ""}
+                            style={{
+                              width: `${
+                                c.invoicesLimit >= Number.MAX_SAFE_INTEGER / 2
+                                  ? 4
+                                  : Math.min(
+                                      100,
+                                      c.invoicesLimit === 0
+                                        ? 0
+                                        : (c.invoicesUsed / c.invoicesLimit) *
+                                            100,
+                                    )
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <Badge tone={c.atLimit ? "amber" : "green"}>
+                        {c.atLimit
+                          ? "Limit reached"
+                          : c.status === "TRIAL"
+                            ? "Trial"
+                            : "Active"}
+                      </Badge>
+                    </td>
+                    <td>{new Date(c.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <Button kind="ghost" onClick={() => openChange(c)}>
+                        Change plan
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+        <div className="pagination">
+          <span>
+            Showing {filtered.length} of {companies.length} companies
+          </span>
         </div>
       </section>
 
-      {modal && (
+      {target && (
         <Modal
           title="Change subscription plan"
           icon="card"
-          onClose={() => setModal(false)}
+          onClose={() => {
+            setTarget(null)
+            setError("")
+          }}
         >
           <p>
-            Switch this workspace to the <strong>Pro plan</strong>? The new
-            limits and billing will take effect immediately.
+            Switch <strong>{target.name}</strong> to the{" "}
+            <strong>
+              {PLAN_CATALOG.find((p) => p.key === nextPlan)?.name}
+            </strong>{" "}
+            plan? The new limits take effect immediately for that company.
           </p>
-          <div className="modal-note plan-note">
-            <span>Pro</span>
-            <span>
-              <strong>$49 / month</strong>
-              <br />
-              <small>Unlimited customers · 250 invoices / month</small>
-            </span>
+          {error && (
+            <div className="error-banner">
+              <Icon name="alert" size={16} />
+              <span>
+                <strong>Could not change plan</strong>
+                <small>{error}</small>
+              </span>
+            </div>
+          )}
+          <div className="modal-form">
+            <select
+              className="table-select"
+              value={nextPlan}
+              onChange={(e) => setNextPlan(e.target.value as PlanKey)}
+            >
+              {PLAN_CATALOG.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.name} — {p.features.join(", ")}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="modal-actions">
-            <Button kind="secondary" onClick={() => setModal(false)}>
-              Cancel
-            </Button>
             <Button
+              kind="secondary"
               onClick={() => {
-                setModal(false)
-                notify("Subscription plan updated.")
+                setTarget(null)
+                setError("")
               }}
             >
-              Confirm change
+              Cancel
+            </Button>
+            <Button onClick={changePlan} disabled={saving}>
+              {saving ? "Updating..." : "Confirm change"}
             </Button>
           </div>
         </Modal>

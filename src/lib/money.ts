@@ -5,14 +5,17 @@
  */
 
 export function toCents(amount: number): number {
-  return Math.round(amount * 100);
+  return Math.round(amount * 100)
 }
 
 export function fromCents(cents: number): number {
-  return cents / 100;
+  return cents / 100
 }
 
 /** Line total in cents: quantity (≤3 decimals) × unit price in cents, rounded once. */
-export function lineTotalCents(quantity: number, unitPriceCents: number): number {
-  return Math.round(quantity * unitPriceCents);
+export function lineTotalCents(
+  quantity: number,
+  unitPriceCents: number,
+): number {
+  return Math.round(quantity * unitPriceCents)
 }

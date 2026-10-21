@@ -1,4 +1,5 @@
 "use client"
+// ignore
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -14,33 +15,30 @@ import { Icon } from "./icon"
 import { Avatar } from "./ui"
 import { authClient } from "@/lib/auth-client"
 import { formatLimit } from "@/lib/subscription"
+import { routes, type Screen } from "@/lib/routes"
 
-const nav = [
-  { id: "dashboard", label: "Dashboard", icon: "grid" as const },
-  { id: "customers", label: "Customers", icon: "users" as const },
-  { id: "invoices", label: "Invoices", icon: "file" as const },
-  { id: "team", label: "Team", icon: "team" as const },
-  { id: "subscription", label: "Subscription", icon: "card" as const },
+const nav: {
+  id: Screen
+  label: string
+  icon: "grid" | "users" | "file" | "team" | "card"
+}[] = [
+  { id: "dashboard", label: "Dashboard", icon: "grid" },
+  { id: "customers", label: "Customers", icon: "users" },
+  { id: "invoices", label: "Invoices", icon: "file" },
+  { id: "team", label: "Team", icon: "team" },
+  { id: "subscription", label: "Subscription", icon: "card" },
 ]
-const routes: Record<string, string> = {
-  dashboard: "/dashboard",
-  customers: "/customers",
-  invoices: "/invoices",
-  team: "/team",
-  subscription: "/subscription",
-  admin: "/admin",
-  login: "/login",
-  register: "/register",
-}
-type Screen = string
 
 type ShellContextValue = {
   viewer: boolean
   setViewer: (value: boolean) => void
   notify: (message: string) => void
   companyId: string | null
+  companyName: string | null
   role: string | null
   plan: string | null
+  isPlatformAdmin: boolean
+  refresh: () => void
 }
 
 const ShellContext = createContext<ShellContextValue | null>(null)
@@ -76,28 +74,49 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [companies, setCompanies] = useState<CompanyInfo[]>([])
   const [activeCompany, setActiveCompany] = useState<CompanyInfo | null>(null)
-  const [usage, setUsage] = useState<{ customers: { used: number; limit: number }; invoices: { used: number; limit: number } } | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [usage, setUsage] = useState<{
+    customers: { used: number; limit: number }
+    invoices: { used: number; limit: number }
+  } | null>(null)
+
+  const loadSession = useCallback(() => {
+    fetch("/api/companies")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((data) => {
+        if (data?.user) setUser(data.user)
+        setIsPlatformAdmin(Boolean(data?.isPlatformAdmin))
+        if (data?.companies?.length) {
+          setCompanies(data.companies)
+          setActiveCompany((current) => {
+            const match = data.companies.find(
+              (c: CompanyInfo) =>
+                c.id ===
+                current?.id,
+            )
+            return (
+              match ??
+              data.companies[0]
+            )
+          })
+        }
+      })
+  }, [])
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/companies").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([data]) => {
-      if (data?.user) setUser(data.user)
-      if (data?.companies?.length) {
-        setCompanies(data.companies)
-        const first = data.companies[0]
-        setActiveCompany(first)
-        if (first?.id) {
-          fetch(`/api/dashboard?companyId=${first.id}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null)
-            .then((d) => {
-              if (d?.usage) setUsage(d.usage)
-            })
-        }
-      }
-    })
-  }, [])
+    loadSession()
+  }, [loadSession])
+
+  useEffect(() => {
+    if (!activeCompany?.id) return
+    fetch(`/api/dashboard?companyId=${activeCompany.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        if (d?.usage) setUsage(d.usage)
+      })
+  }, [activeCompany?.id])
 
   const notify = useCallback((message: string) => {
     setToast(message)
@@ -110,14 +129,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`)
+    pathname ===
+      href ||
+    pathname.startsWith(`${href}/`)
 
   const handleSignOut = async () => {
     try {
       await authClient.signOut()
-    } catch {
-      // ignore
-    }
+    } catch {}
     router.push(routes.login)
   }
 
@@ -131,10 +150,27 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const companyName = activeCompany?.name || "Workspace"
   const planName = activeCompany?.plan || "TRIAL"
-  const userRole = activeCompany?.role === "OWNER" ? "Owner" : activeCompany?.role === "STAFF" ? "Staff" : "Viewer"
+  const userRole =
+    activeCompany?.role === "OWNER"
+      ? "Owner"
+      : activeCompany?.role === "STAFF"
+        ? "Staff"
+        : "Viewer"
 
   return (
-    <ShellContext.Provider value={{ viewer, setViewer, notify, companyId: activeCompany?.id ?? null, role: activeCompany?.role ?? null, plan: planName }}>
+    <ShellContext.Provider
+      value={{
+        viewer,
+        setViewer,
+        notify,
+        companyId: activeCompany?.id ?? null,
+        companyName: activeCompany?.name ?? null,
+        role: activeCompany?.role ?? null,
+        plan: planName,
+        isPlatformAdmin,
+        refresh: loadSession,
+      }}
+    >
       <div className={`app-shell ${collapsed ? "is-collapsed" : ""}`}>
         <aside className={`sidebar ${sidebarOpen ? "mobile-open" : ""}`}>
           <div className="brand">
@@ -166,6 +202,23 @@ export function AppShell({ children }: { children: ReactNode }) {
               </>
             )}
           </div>
+          {!collapsed && companies.length > 1 && (
+            <select
+              className="company-switch"
+              value={activeCompany?.id ?? ""}
+              aria-label="Switch company"
+              onChange={(e) => {
+                const next = companies.find((c) => c.id === e.target.value)
+                if (next) setActiveCompany(next)
+              }}
+            >
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <nav className="main-nav">
             {!collapsed && <span className="nav-label">Workspace</span>}
             {nav.map((item) => (
@@ -187,7 +240,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Icon name="settings" />
               {!collapsed && <span>Settings</span>}
             </button>
-            {activeCompany?.role === "OWNER" && (
+            {isPlatformAdmin && (
               <Link
                 href={routes.admin}
                 className={isActive(routes.admin) ? "active" : ""}
@@ -210,9 +263,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="progress">
                   <span
                     style={{
-                      width: usage.invoices.limit >= Number.MAX_SAFE_INTEGER / 2
-                        ? "8%"
-                        : `${Math.min(100, (usage.invoices.used / usage.invoices.limit) * 100)}%`,
+                      width:
+                        usage.invoices.limit >= Number.MAX_SAFE_INTEGER / 2
+                          ? "8%"
+                          : `${Math.min(100, (usage.invoices.used / usage.invoices.limit) * 100)}%`,
                     }}
                   />
                 </div>
@@ -248,7 +302,31 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Icon name="menu" />
               </button>
-              <h1>{pathname === "/" ? "Dashboard" : pathname === "/dashboard" ? "Dashboard" : pathname === "/customers" ? "Customers" : pathname.startsWith("/customers/new") ? "Customer" : pathname.startsWith("/customers/") ? "Customer details" : pathname === "/invoices" ? "Invoices" : pathname.startsWith("/invoices/new") ? "New invoice" : pathname.startsWith("/invoices/") ? "Invoice details" : pathname === "/team" ? "Team" : pathname === "/subscription" ? "Subscription" : pathname === "/admin" ? "Super Admin" : "MiniBiz"}</h1>
+              <h1>
+                {pathname === "/"
+                  ? "Dashboard"
+                  : pathname === "/dashboard"
+                    ? "Dashboard"
+                    : pathname === "/customers"
+                      ? "Customers"
+                      : pathname.startsWith("/customers/new")
+                        ? "Customer"
+                        : pathname.startsWith("/customers/")
+                          ? "Customer details"
+                          : pathname === "/invoices"
+                            ? "Invoices"
+                            : pathname.startsWith("/invoices/new")
+                              ? "New invoice"
+                              : pathname.startsWith("/invoices/")
+                                ? "Invoice details"
+                                : pathname === "/team"
+                                  ? "Team"
+                                  : pathname === "/subscription"
+                                    ? "Subscription"
+                                    : pathname === "/admin"
+                                      ? "Super Admin"
+                                      : "MiniBiz"}
+              </h1>
             </div>
             <div className="topbar-actions">
               {activeCompany?.role !== "VIEWER" && (

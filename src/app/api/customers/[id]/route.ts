@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import { Role } from "@/../src/generated/prisma/client";
+import { NextResponse } from "next/server"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { z } from "zod"
+import { Role } from "@/generated/prisma/enums"
 
 const schema = z.object({
   name: z.string().min(1).optional(),
@@ -11,58 +11,64 @@ const schema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   companyId: z.string().min(1),
-});
+})
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { id } = await params;
-  const { searchParams } = new URL(req.url);
-  const companyId = searchParams.get("companyId");
+  const { id } = await params
+  const { searchParams } = new URL(req.url)
+  const companyId = searchParams.get("companyId")
   if (!companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const membership = await prisma.membership.findFirst({
     where: { userId: session.user.id, companyId },
-  });
+  })
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const customer = await prisma.customer.findFirst({
     where: { id, companyId },
-  });
+  })
   if (!customer) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
-  return NextResponse.json({ customer });
+  return NextResponse.json({ customer })
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { id } = await params;
-  const body = await req.json();
-  const parsed = schema.safeParse(body);
+  const { id } = await params
+  const body = await req.json()
+  const parsed = schema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 })
   }
-  const { companyId, ...data } = parsed.data;
+  const { companyId, ...data } = parsed.data
   const membership = await prisma.membership.findFirst({
     where: { userId: session.user.id, companyId },
-  });
+  })
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (membership.role === Role.VIEWER) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  const existing = await prisma.customer.findFirst({ where: { id, companyId } });
+  const existing = await prisma.customer.findFirst({ where: { id, companyId } })
   if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   const customer = await prisma.customer.update({
     where: { id },
@@ -72,49 +78,54 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
       ...(data.address !== undefined ? { address: data.address || null } : {}),
     },
-  });
-  return NextResponse.json({ customer });
+  })
+  return NextResponse.json({ customer })
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { id } = await params;
-  const { searchParams } = new URL(req.url);
-  const companyId = searchParams.get("companyId");
+  const { id } = await params
+  const { searchParams } = new URL(req.url)
+  const companyId = searchParams.get("companyId")
   if (!companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const membership = await prisma.membership.findFirst({
     where: { userId: session.user.id, companyId },
-  });
+  })
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (membership.role !== Role.OWNER) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  const existing = await prisma.customer.findFirst({ where: { id, companyId } });
+  const existing = await prisma.customer.findFirst({ where: { id, companyId } })
   if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   try {
-    await prisma.customer.delete({ where: { id } });
+    await prisma.customer.delete({ where: { id } })
   } catch (e: any) {
     if (e?.code === "P2003") {
       return NextResponse.json(
         { error: "Cannot delete a customer that has invoices" },
         { status: 409 },
-      );
+      )
     }
-    console.error("customer delete failed:", e);
-    return NextResponse.json({ error: "Failed to delete customer" }, { status: 500 });
+    console.error("customer delete failed:", e)
+    return NextResponse.json({ error: "Failed to delete customer" }, {
+      status: 500,
+    })
   }
   await prisma.company.update({
     where: { id: companyId },
     data: { customersCount: { decrement: 1 } },
-  });
-  return NextResponse.json({ ok: true });
+  })
+  return NextResponse.json({ ok: true })
 }

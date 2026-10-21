@@ -12,18 +12,21 @@ type InvoiceRow = {
   createdAt?: string
   issuedAt?: string | null
   total?: number | string
+  currency?: string
   status: string
 }
 
-export function useGo() {
-  const router = useRouter()
-  return (screen: string) => {
-    if (screen === "invoice-form") router.push("/invoices/new")
-    else if (screen === "invoice-detail") router.push("/invoices")
-    else if (screen === "customer-form") router.push("/customers/new")
-    else if (screen === "customer-detail") router.push("/customers")
-    else router.push("/dashboard")
-  }
+export function formatMoney(
+  amount: number | string | null | undefined,
+  currency = "USD",
+): string {
+  const value =
+    typeof amount === "string" ? Number.parseFloat(amount) : (amount ?? 0)
+  if (!Number.isFinite(value)) return "$0.00"
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: currency || "USD",
+  })
 }
 
 export function InvoiceTable({ data = [] as InvoiceRow[] }) {
@@ -44,7 +47,10 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={6} style={{ textAlign: "center", padding: "1.5rem" }}>
+              <td
+                colSpan={6}
+                style={{ textAlign: "center", padding: "1.5rem" }}
+              >
                 No invoices yet
               </td>
             </tr>
@@ -56,7 +62,9 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
                 className="clickable"
               >
                 <td>
-                  <strong className="invoice-id">{i.invoiceNumber || i.id}</strong>
+                  <strong className="invoice-id">
+                    {i.invoiceNumber || i.id}
+                  </strong>
                 </td>
                 <td>{i.customer?.name || "—"}</td>
                 <td>
@@ -67,11 +75,7 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
                       : "—"}
                 </td>
                 <td>
-                  <strong>
-                    {typeof i.total === "number"
-                      ? i.total.toLocaleString("en-US", { style: "currency", currency: "USD" })
-                      : i.total || "$0.00"}
-                  </strong>
+                  <strong>{formatMoney(i.total, i.currency)}</strong>
                 </td>
                 <td>
                   <Badge tone={i.status === "ISSUED" ? "green" : "amber"}>
@@ -79,7 +83,7 @@ export function InvoiceTable({ data = [] as InvoiceRow[] }) {
                   </Badge>
                 </td>
                 <td>
-                  <button className="row-action">
+                  <button className="row-action" aria-label="Invoice actions">
                     <Icon name="more" />
                   </button>
                 </td>
