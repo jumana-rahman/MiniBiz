@@ -2,6 +2,7 @@
 
 import { InvoiceTable } from "@/components/invoice-table"
 import { useShell } from "@/components/shell"
+import { ErrorBanner } from "@/components/error-banner"
 import { Badge, Button, PageIntro, Stat } from "@/components/ui"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -37,24 +38,29 @@ type DashboardData = {
 }
 
 export default function DashboardPage() {
-  const { viewer, companyId } = useShell()
+  const { companyId, readOnly, userName } = useShell()
   const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!companyId) return
     fetch(`/api/dashboard?companyId=${companyId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((d) => {
         setData(d)
+        setError("")
+        setLoading(false)
+      })
+      .catch(() => {
+        setError("Could not load the dashboard. Please try again.")
         setLoading(false)
       })
   }, [companyId])
 
   const companyName = data?.company?.name || "your business"
-  const firstName = companyName.split(" ")[0] || "there"
+  const firstName = (userName || "").split(" ")[0] || "there"
   const plan = data?.company?.plan || "TRIAL"
   const issuedTotal = (data?.stats?.issuedTotal ?? 0).toLocaleString("en-US", {
     style: "currency",
@@ -67,14 +73,16 @@ export default function DashboardPage() {
         title={`Hello, ${firstName}`}
         text={`Here's what's happening with ${companyName} today.`}
         actions={
-          !viewer &&
-          data?.role !== "VIEWER" && (
+          !readOnly && (
             <Button icon={Plus} onClick={() => router.push("/invoices/new")}>
               Create invoice
             </Button>
           )
         }
       />
+      {error && (
+        <ErrorBanner title="Could not load the dashboard">{error}</ErrorBanner>
+      )}
       <div className="stats-grid">
         <Stat
           label="Total customers"

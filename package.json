@@ -6,7 +6,6 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "format": "oxfmt",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
     "clean:test-data": "tsx scripts/clean-test-data.ts",

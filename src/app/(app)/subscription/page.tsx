@@ -19,14 +19,14 @@ type SubscriptionData = {
 }
 
 export default function SubscriptionPage() {
-  const { notify, companyId, viewer, role } = useShell()
+  const { notify, companyId, readOnly, role } = useShell()
   const [data, setData] = useState<SubscriptionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [target, setTarget] = useState<PlanKey | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
-  const canChange = role === "OWNER" && !viewer
+  const canChange = role === "OWNER" && !readOnly
 
   const load = useCallback(() => {
     if (!companyId) return

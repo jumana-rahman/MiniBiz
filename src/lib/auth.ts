@@ -16,6 +16,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  // "Remember me" on the sign-in form controls the session cookie. A
+  // remembered session persists for 30 days and refreshes once a day; an
+  // unremembered one is a browser-session cookie that expires in 7 days.
+  session: {
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
+  },
   rateLimit,
 })
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Eye, Mail, Pencil, Plus, Settings, Trash2 } from "lucide-react"
 import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
+import { canManageTeam } from "@/lib/permissions"
 import {
   Avatar,
   Badge,
@@ -36,7 +37,7 @@ const roleLabel: Record<string, string> = {
 }
 
 export default function TeamPage() {
-  const { notify, companyId, viewer, role } = useShell()
+  const { notify, companyId, readOnly, role } = useShell()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -46,8 +47,8 @@ export default function TeamPage() {
   const [inviting, setInviting] = useState(false)
   const [page, setPage] = useState(1)
 
-  const isOwner = role === "OWNER"
-  const canManage = isOwner && !viewer
+  const isOwner = canManageTeam(role)
+  const canManage = isOwner && !readOnly
 
   const pagination: PaginationState = {
     page,

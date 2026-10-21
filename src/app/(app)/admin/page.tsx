@@ -64,23 +64,27 @@ export default function AdminPage() {
   const load = useCallback(() => {
     setLoading(true)
     fetch("/api/admin")
-      .then((r) =>
-        r.ok ? r.json() : Promise.reject(new Error(r.statusText || "Failed")),
-      )
-      .catch((err) => {
-        if (err instanceof Error && err.message === "403") {
-          setRestricted(true)
-        } else {
-          setError("Could not load the platform console.")
-        }
-        setCompanies([])
-        setStats(null)
+      .then(async (r) => {
+        if (r.status === 403) throw new Error("FORBIDDEN")
+        if (!r.ok) throw new Error("LOAD_FAILED")
+        return r.json()
       })
       .then((d) => {
         if (d) {
           setCompanies(d.companies ?? [])
           if (d.stats) setStats(d.stats)
         }
+        setError("")
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.message === "FORBIDDEN") {
+          setRestricted(true)
+        } else {
+          setError("Could not load the platform console. Please try again.")
+        }
+        setCompanies([])
+        setStats(null)
         setLoading(false)
       })
   }, [])
@@ -179,6 +183,11 @@ export default function AdminPage() {
             title="Company overview"
             text="Monitor company accounts, subscription plans, and platform usage."
           />
+          {error && (
+            <ErrorBanner title="Could not load the console">
+              {error}
+            </ErrorBanner>
+          )}
       <div className="stats-grid admin-stats">
         <Stat
           label="Total companies"

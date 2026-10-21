@@ -44,6 +44,8 @@ export function makeJar(): Jar {
 export type CallOptions = {
   method?: string
   body?: unknown
+  /** Sends the string verbatim, so malformed JSON can be tested. */
+  rawBody?: string
 }
 
 export type CallResult = {
@@ -62,10 +64,13 @@ export async function call(
     method: options.method ?? "GET",
     headers: {
       Origin: base,
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.body || options.rawBody
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(jar.header() ? { Cookie: jar.header() } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body:
+      options.rawBody ?? (options.body ? JSON.stringify(options.body) : undefined),
     redirect: "manual",
   })
   jar.absorb(res)

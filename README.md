@@ -8,7 +8,7 @@ Built from the MiniBiz Software Requirements Specification (SRS v1.0).
 | | |
 | --- | --- |
 | Repository | <https://github.com/jumana-rahman/MiniBiz> |
-| Live application | `https://<your-railway-domain>.up.railway.app` _(add after the Railway deploy — see [Deployment](#deployment-railway))_ |
+| Live application | `https://<your-railway-domain>.up.railway.app` — **replace this placeholder with the deployed URL** (see [Deployment](#deployment-railway)) |
 | Database | PostgreSQL 14+ on Railway |
 | Framework | Next.js 16.4.2 (App Router) · React 19.3 · TypeScript 5.7 · Tailwind CSS 4.3 |
 
@@ -27,8 +27,9 @@ Built from the MiniBiz Software Requirements Specification (SRS v1.0).
 9. [Domain model](#domain-model)
 10. [API](#api)
 11. [SRS traceability](#srs-traceability)
-12. [Time spent](#time-spent)
-13. [AI assistance disclosure](#ai-assistance-disclosure)
+12. [Assumptions, limitations and trial policy](#assumptions-limitations-and-trial-policy)
+13. [Time spent](#time-spent)
+14. [AI assistance disclosure](#ai-assistance-disclosure)
 
 ---
 
@@ -52,10 +53,15 @@ Built from the MiniBiz Software Requirements Specification (SRS v1.0).
   live usage counts and simulated plan changes. A server-side route guard
   redirects non-administrators away, and the API answers `403`.
 - **Multi-tenant isolation** — every API route resolves the caller's membership
-  first; cross-tenant requests are rejected with `403`/`404`.
+  first; cross-tenant requests are rejected with `403`/`404`. The invoice →
+  customer link is also enforced by a **composite foreign key** on
+  `(companyId, customerId)` in PostgreSQL, so the database itself rejects an
+  invoice that points at another company's customer — not just the API.
 - **UI polish** — server-side pagination and search, loading/empty/error
   states, per-route `loading`/`error`/`not-found` boundaries, modal dialogs,
-  status badges, Lucide icons, fully responsive layout.
+  status badges, Lucide icons, fully responsive layout, a searchable customer
+  type-ahead on the invoice form, and a working **Remember me** option on the
+  sign-in screen (browser-session vs. 30-day persistent session).
 
 ---
 
@@ -127,7 +133,6 @@ Open <http://localhost:3000>.
 | `npm run test:e2e` | Unit **and** HTTP end-to-end tests (starts its own production server) |
 | `npm run seed` | Seed demo data |
 | `npm run clean:test-data` | Remove test tenants/users, keep the demo accounts |
-| `npm run format` | Format the source with `oxfmt` |
 
 `npm run test:e2e` **does not need a server to be running**. The global setup in
 `tests/setup/e2e-server.ts` builds the app if the build is stale, picks a free
@@ -135,8 +140,10 @@ port, starts `next start` with a matching `BETTER_AUTH_URL`, waits until it
 answers, and tears it down afterwards. Set `MINIBIZ_BASE_URL` to point the
 tests at an already-running instance instead.
 
-Both suites need a reachable PostgreSQL database (`DATABASE_URL`) and apply the
-migrations with `npx prisma migrate deploy` before running.
+`npm test` needs neither a server nor a database — the unit suites mock Prisma
+and better-auth. `npm run test:e2e` needs a reachable PostgreSQL database
+(`DATABASE_URL`) and applies the migrations with
+`npx prisma migrate deploy` before running.
 
 ---
 
@@ -150,6 +157,8 @@ The test suites cover the SRS §11 requirements directly.
 | Unit | `tests/security.test.ts` | §6 tenant-resolution and role guards |
 | Unit | `tests/serialize.test.ts` | Decimal → number serialisation for JSON responses |
 | API end-to-end | `tests/api.test.ts` | §11.1 tenant isolation, §11.3 invoice rules, §11.4 subscription limits |
+| Tenant isolation | `tests/tenant-isolation.test.ts` | §11.1 enforced tenant isolation, cross-tenant customer substitution, same invoice number across companies, malformed JSON → `400` |
+| DB constraints | `tests/db-constraints.test.ts` | §11.1 database-level composite FK, §11.3 per-company uniqueness, unique email per company |
 | Roles | `tests/roles.test.ts` | §11.2 authentication/authorisation, §11.4 plan changes |
 | Pagination | `tests/pagination.test.ts` | §9.1 pagination controls and search |
 
@@ -163,33 +172,35 @@ The test suites cover the SRS §11 requirements directly.
  RUN  v5.0.5 C:/Users/HP/minibiz
 
 
- Test Files  3 passed | 3 skipped (6)
-      Tests  29 passed | 30 skipped (59)
-   Start at  19:13:55
-   Duration  7.77s (import 80%, transform 11%, tests 6%, worker 3%)
+ Test Files  3 passed | 5 skipped (8)
+      Tests  29 passed | 42 skipped (71)
+   Start at  22:53:47
+   Duration  7.02s (import 75%, transform 17%, tests 4%, worker 4%)
 ```
 
-The three skipped files are the end-to-end suites — they only run when
-`MINIBIZ_E2E=1` (set automatically by `npm run test:e2e`).
+The skipped files are the end-to-end and live-database suites — they only run
+when `MINIBIZ_E2E=1` (set automatically by `npm run test:e2e`).
 
 ### `npm run test:e2e` — unit + end-to-end
 
 ```
 [e2e] ▲ Next.js 16.4.2
-[e2e] - Local:         http://localhost:60463
-[e2e] ✓ Ready in 965ms
-[e2e] Server ready at http://localhost:60463
+[e2e] - Local:         http://localhost:51115
+[e2e] ✓ Ready
+[e2e] Server ready at http://localhost:51115
 
- Test Files  6 passed (6)
-      Tests  59 passed (59)
-   Start at  19:14:10
-   Duration  23.74s (tests 87%, import 10%, transform 2%, worker 1%)
+ Test Files  8 passed (8)
+      Tests  71 passed (71)
+   Start at  22:58:42
+   Duration  145.04s (tests 88%, import 6%, transform 5%)
 ```
 
-**All 59 tests pass.** The run prints two Prisma `Unique constraint failed`
-messages: these are *expected*. The tests deliberately create a duplicate
-customer email and a duplicate invoice number to prove the database constraint
-rejects them (SRS §11.3 — "Invoice numbers are unique within each company").
+**All 71 tests pass.** The run prints a few Prisma
+`Unique constraint failed` / `Foreign key constraint violated` messages: these
+are *expected*. Tests deliberately create a duplicate customer email, a
+duplicate invoice number and a cross-tenant invoice to prove the **database**
+constraints reject them (SRS §11.3 — "Invoice numbers are unique within each
+company"; §11.1 — tenant isolation).
 
 `npm run typecheck` and `npm run build` also complete successfully with the
 same code.
@@ -309,34 +320,57 @@ sends; the UI is never the enforcement point.
 
 ### Steps
 
-1. **Push the code** — `git push origin main`.
-2. **Create the project** — Railway dashboard → *New Project* → *Deploy from
+1. **Push the code** — `git push origin main` (the repository is public).
+2. **Create the project** — Railway dashboard → *New Project* → *Deploy from a
    GitHub repo* → select `jumana-rahman/MiniBiz`.
 3. **Provision PostgreSQL** — *Add service* → *Database* → *PostgreSQL*;
    Railway creates `DATABASE_URL` automatically.
-4. **Set the environment variables** in the app service:
-   - `DATABASE_URL` — the PostgreSQL service URL (auto-created)
+4. **Set the environment variables** on the app service **before the first
+   deploy**:
+   - `DATABASE_URL` — the PostgreSQL service URL (use a Railway reference
+     variable, e.g. `${{Postgres.DATABASE_URL}}`)
    - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
    - `BETTER_AUTH_URL` — the public Railway domain, e.g.
-     `https://minibiz-production.up.railway.app` (must match exactly)
-5. **Deploy** — the build runs `npm ci && npx prisma generate && npm run build`
-   and the start command applies the migrations with
-   `npx prisma migrate deploy` before starting the server. This satisfies
-   DEP-004: migrations are applied through the controlled deployment process,
-   not by hand.
-6. **Seed the demo data** once:
+     `https://minibiz-production.up.railway.app` — **must match exactly**,
+     including `https://` and no trailing slash
+5. **Deploy** — the build runs
+   `npm ci && npx prisma generate && npm run build`; the start command runs
+   `npx prisma migrate deploy && npm run start`, so the five migrations
+   (including the composite-FK migration) are applied by the deployment
+   process itself (DEP-004), never by hand.
+6. **Seed the demo data** once, from a local shell with the Railway
+   `DATABASE_URL` in the environment:
    ```bash
-   railway run --service Postgres npx prisma migrate deploy
-   railway run npm run seed
+   DATABASE_URL='<railway-postgres-url>' npx prisma migrate deploy
+   DATABASE_URL='<railway-postgres-url>' npm run seed
    ```
-   (or run the seed from a local shell with `DATABASE_URL` pointing at the
-   Railway database).
-7. **Smoke test (DEP-007)** — open the public URL, log in with
-   `owner@acmebloom.test` / `password123`, create a customer and an invoice,
-   then sign in as `viewer@acmebloom.test` and confirm the write actions are
-   gone.
-8. **Update this README** — paste the live URL into the table at the top and
-   into the demo section.
+   (or `railway run npm run seed` if the Railway CLI is linked to the project).
+   The seed is idempotent.
+7. **Smoke test (DEP-007)** — with the public HTTPS URL:
+   - `GET /login` renders; open the browser devtools → Network.
+   - Sign in as `owner@acmebloom.test` / `password123` → lands on `/dashboard`,
+     the session cookie is `Secure` and `HttpOnly`.
+   - Create a customer, create and issue an invoice → the issued invoice is
+     locked.
+   - Sign out, sign in as `viewer@acmebloom.test` → *Add customer* / *Create
+     invoice* are gone and `POST /api/customers` answers `403`.
+   - Sign in as `admin@minibiz.test` → `/admin` lists both companies; the
+     tenant pages redirect to `/admin`.
+   - Open `/api/customers?companyId=<other company id>` while signed in as the
+     Lumen Works owner → `403`.
+8. **Update this README** — replace the live-URL placeholder in the table at
+   the top (and in the demo section) with the deployed domain, then commit the
+   README on its own.
+
+### Troubleshooting
+
+- **Sign-in answers `403 Invalid origin`** — `BETTER_AUTH_URL` does not match
+  the URL in the browser bar (scheme, host or port). Fix the variable and
+  redeploy.
+- **`Can't reach database server`** — the app service and the PostgreSQL
+  service are not linked; re-add the `DATABASE_URL` reference variable.
+- **Demo logins fail after a redeploy** — the Railway database was reset (the
+  seed is not part of the start command). Re-run step 6.
 
 > DEP-009: no production secrets are in the repository. `.env` is gitignored
 > and `.env.example` contains placeholders only.
@@ -426,15 +460,15 @@ before any database write.
 
 | Req | Summary | Where | Test |
 | --- | --- | --- | --- |
-| SEC-001 | Every customer and invoice is associated with a company | `prisma/schema.prisma` | `tests/security.test.ts` |
-| SEC-002 | The server identifies the active company through a verified membership | `src/lib/auth-helpers.ts` | `tests/security.test.ts` |
-| SEC-003 | Browser-supplied company IDs, user IDs and roles are never trusted for authorisation | `src/lib/auth-helpers.ts` | `tests/roles.test.ts` |
-| SEC-004 | Every tenant-scoped query enforces the company boundary | all `src/app/api/*` routes | `tests/api.test.ts` |
-| SEC-005 | Cross-company reads are denied | `src/lib/auth-helpers.ts` | `tests/api.test.ts`, `tests/roles.test.ts` |
+| SEC-001 | Every customer and invoice is associated with a company, enforced by a composite foreign key | `prisma/schema.prisma`, `prisma/migrations/20261021225000_invoice_tenant_composite_fk` | `tests/db-constraints.test.ts` |
+| SEC-002 | The server identifies the active company through a verified membership | `src/lib/tenant.ts`, `src/lib/auth-helpers.ts` | `tests/security.test.ts` |
+| SEC-003 | Browser-supplied company IDs, user IDs and roles are never trusted for authorisation | `src/lib/tenant.ts`, `src/lib/validation.ts` | `tests/roles.test.ts` |
+| SEC-004 | Every tenant-scoped query enforces the company boundary | all `src/app/api/*` routes, `src/lib/tenant.ts` | `tests/api.test.ts`, `tests/tenant-isolation.test.ts` |
+| SEC-005 | Cross-company reads are denied | `src/lib/tenant.ts` | `tests/api.test.ts`, `tests/roles.test.ts`, `tests/tenant-isolation.test.ts` |
 | SEC-006 | Cross-company updates fail and leave the original record unchanged | `src/app/api/customers/[id]/route.ts`, `src/app/api/invoices/[id]/route.ts` | `tests/api.test.ts` |
-| SEC-007 | Invoice creation rejects a customer from another company | `src/app/api/invoices/route.ts` | `tests/api.test.ts` |
-| SEC-008 | Role checks are enforced server-side for every protected operation | `src/lib/auth-helpers.ts` | `tests/roles.test.ts` |
-| SEC-009 | Viewer write attempts are rejected, including direct API calls | `src/app/api/customers/route.ts`, `src/app/api/invoices/route.ts` | `tests/roles.test.ts` |
+| SEC-007 | Invoice creation rejects a customer from another company — in the API **and** in the database | `src/app/api/invoices/route.ts`, `src/lib/tenant.ts`, `prisma/schema.prisma` | `tests/tenant-isolation.test.ts`, `tests/db-constraints.test.ts` |
+| SEC-008 | Role checks are enforced server-side for every protected operation | `src/lib/permissions.ts`, `src/lib/tenant.ts` | `tests/roles.test.ts` |
+| SEC-009 | Viewer write attempts are rejected, including direct API calls | `src/lib/permissions.ts`, write routes | `tests/roles.test.ts` |
 | SEC-010 | Owners are denied platform-level Super Admin operations | `src/app/api/admin/route.ts` | `tests/roles.test.ts` |
 | SEC-011 | Subscription limits are enforced server-side, independent of the UI | `src/lib/plans.ts` + write routes | `tests/api.test.ts`, `tests/roles.test.ts` |
 | SEC-012 | No authentication secrets or production credentials in Git | `.gitignore` | — |
@@ -454,9 +488,9 @@ before any database write.
 
 | Req | Summary | Test |
 | --- | --- | --- |
-| §11.1 | Tenant isolation | `tests/api.test.ts`, `tests/roles.test.ts` |
+| §11.1 | Tenant isolation | `tests/api.test.ts`, `tests/roles.test.ts`, `tests/tenant-isolation.test.ts`, `tests/db-constraints.test.ts` |
 | §11.2 | Authentication and authorisation | `tests/roles.test.ts` |
-| §11.3 | Invoice rules | `tests/api.test.ts`, `tests/pagination.test.ts` |
+| §11.3 | Invoice rules | `tests/api.test.ts`, `tests/pagination.test.ts`, `tests/db-constraints.test.ts` |
 | §11.4 | Subscription rules | `tests/api.test.ts`, `tests/roles.test.ts` |
 | §11.5 | Runnable scripts, setup instructions, actual output in the README | this file, `tests/` |
 
@@ -485,23 +519,30 @@ src/
                       team, subscription, admin) + loading/error/not-found
     api/              Route handlers — the only place business rules live
     login, register   Public auth screens
-  components/         Shell, invoice table, pagination, error banner, shared UI
+  components/         Shell, invoice table, pagination, customer picker,
+                      error banner, shared UI
   lib/
-    auth.ts           better-auth instance
+    auth.ts           better-auth instance (sessions, remember-me)
     auth-helpers.ts   Session, membership and platform-admin guards
+    http.ts           HttpError, JSON error responses, safe body parsing
+    permissions.ts    Role constants and write/owner role checks
+    tenant.ts         Membership resolution and tenant-scoped helpers
+    validation.ts     Zod schemas for every write payload
     plans.ts          Plan catalogue and limits (client-safe)
     money.ts          Integer minor-unit money arithmetic
     pagination.ts     Shared page/pageSize parsing and totals
     routes.ts         Shared route map
     serialize.ts      Prisma Decimal → number for JSON responses
 prisma/
-  schema.prisma       Data model
+  schema.prisma       Data model (incl. the invoice→customer composite FK)
   migrations/         Versioned SQL migrations
   seed.ts             Demo data
 tests/
   setup/              Vitest global setup (starts the app for e2e)
   helpers/            Shared HTTP helpers
   api.test.ts         API end-to-end suite
+  tenant-isolation.test.ts  Cross-tenant substitution, shared numbers, bad JSON
+  db-constraints.test.ts    Live-PostgreSQL constraint proofs
   roles.test.ts       Role and subscription end-to-end suite
   pagination.test.ts  Pagination and search end-to-end suite
   plans.test.ts       Unit — plan catalogue and limits
@@ -511,19 +552,65 @@ tests/
 
 ---
 
+## Assumptions, limitations and trial policy
+
+### Trial policy
+
+The SRS defines **Trial, Basic and Pro** as *plans* and does not define a
+time-based trial expiry, so the Trial is implemented as a plan with limits
+(5 customers / 10 invoices / 2 non-owner seats, unlimited Owner):
+
+- Every company created through registration starts on **Trial** (FR-003).
+- There is no scheduled job that downgrades or locks a company after N days —
+  the Trial does not expire automatically.
+- The "14-day trial" wording on the registration screen is presentation copy.
+  If a time-limited trial is required, the place to add it is the
+  `Company`/`Membership` model plus a scheduled task; the plan limits and all
+  enforcement already live in `src/lib/plans.ts`, so the change stays local.
+- Changing plans **never deletes records** (FR-036): a downgraded company keeps
+  its data and is simply blocked from creating records above the new limits
+  until usage drops below it.
+
+### Assumptions
+
+- One user can belong to several companies; the active company is chosen in the
+  sidebar and every request is re-authorised against that membership. The
+  browser never decides the tenant.
+- Money is stored and calculated in **integer cents** on the server; totals are
+  never trusted from the client.
+- Invoice numbers are unique **per company** (`@@unique([companyId,
+  invoiceNumber])`), not globally, and can be repeated across tenants.
+- "Issue" is a one-way action in this scope: an issued invoice is locked and
+  there is no void/credit-note workflow.
+- Plan changes are simulated (no payment gateway), as the SRS requires.
+
+### Known limitations
+
+- **Railway deployment** must be performed from the author's Railway account;
+  until then the live URL in the table at the top is a placeholder. The exact
+  steps are in [Deployment](#deployment-railway).
+- Seed data and demo credentials are for assessment only and share a throwaway
+  password.
+- There is no email delivery (no verification or invitation emails): invitations
+  require the invitee to have registered first (the API returns `404` with a
+  helpful message otherwise).
+- No automated backups or observability beyond the Railway defaults.
+- The UI is a single-page-per-route client layout without offline support.
+
+---
+
 ## Time spent
 
-<!-- TODO(time): fill in the actual hours spent on the assessment. -->
-
-Approximately **X hours** in total, broken down roughly as:
+Approximately **18 focused hours** across roughly **24 elapsed hours**
+(2026-10-20 14:14 → 2026-10-21 20:20), broken down roughly as:
 
 | Phase | Hours |
 | --- | --- |
-| Foundation, schema, auth, tenancy | X |
-| Customers, invoices, server-side calculations | X |
-| Subscriptions, team, dashboard, admin | X |
-| Automated tests and fixes | X |
-| UI polish, documentation, Railway deployment | X |
+| Foundation, schema, auth, tenancy | 4 |
+| Customers, invoices, server-side calculations | 4 |
+| Subscriptions, team, dashboard, admin | 3 |
+| Automated tests and fixes | 3 |
+| UI polish, documentation, SRS audit and hardening | 4 |
 
 ---
 

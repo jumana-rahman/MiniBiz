@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-
-const registerCompanySchema = z.object({
-  companyName: z
-    .string()
-    .trim()
-    .min(1, "Company name is required")
-    .max(100, "Company name must be 100 characters or fewer"),
-})
+import { registerCompanySchema, firstIssue } from "@/lib/validation"
+import { badRequest, readJson, serverError, unauthorized } from "@/lib/http"
 
 function slugify(name: string) {
   return (
@@ -34,16 +27,13 @@ function isUniqueViolation(err: unknown) {
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return unauthorized()
   }
 
-  const raw = await req.json().catch(() => null)
+  const raw = await readJson(req)
   const parsed = registerCompanySchema.safeParse(raw)
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid company name" },
-      { status: 400 },
-    )
+    return badRequest(firstIssue(parsed.error))
   }
 
   const { companyName } = parsed.data
@@ -77,15 +67,9 @@ export async function POST(req: Request) {
         continue
       }
       console.error("register-company failed:", err)
-      return NextResponse.json(
-        { error: "Could not create your company. Please try again." },
-        { status: 500 },
-      )
+      return serverError("Could not create your company. Please try again.")
     }
   }
 
-  return NextResponse.json(
-    { error: "Could not create your company. Please try again." },
-    { status: 500 },
-  )
+  return serverError("Could not create your company. Please try again.")
 }

@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Lock, Plus, Trash2, TriangleAlert } from "lucide-react"
 import { ErrorBanner } from "@/components/error-banner"
+import { CustomerPicker, type CustomerOption } from "@/components/customer-picker"
 import { useShell } from "@/components/shell"
 import { Button, Field, Modal, PageIntro } from "@/components/ui"
 import { routes } from "@/lib/routes"
 import { toCents, fromCents, lineTotalCents } from "@/lib/money"
 
-type Customer = { id: string; name: string; email: string; address: string | null }
+type Customer = CustomerOption
 type LineItem = { description: string; quantity: string; unitPrice: string }
 
 const emptyItem = (): LineItem => ({
@@ -20,9 +21,8 @@ const emptyItem = (): LineItem => ({
 
 export default function InvoiceFormPage() {
   const router = useRouter()
-  const { notify, companyId, viewer, role } = useShell()
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [customerId, setCustomerId] = useState("")
+  const { notify, companyId, readOnly } = useShell()
+  const [customer, setCustomer] = useState<Customer | null>(null)
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [invoiceDate, setInvoiceDate] = useState(
     new Date().toISOString().slice(0, 10),
@@ -35,21 +35,23 @@ export default function InvoiceFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
-  const readOnly = viewer || role === "VIEWER"
-
   useEffect(() => {
     if (!companyId) return
-    fetch(`/api/customers?companyId=${companyId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
+    let cancelled = false
+    fetch(`/api/customers?companyId=${companyId}&pageSize=8`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((d) => {
+        if (cancelled) return
         const list: Customer[] = d?.customers ?? []
-        setCustomers(list)
-        if (list.length > 0) setCustomerId(list[0].id)
+        setCustomer(list[0] ?? null)
       })
+      .catch(() => {
+        if (!cancelled) setCustomer(null)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [companyId])
-
-  const selectedCustomer = customers.find((c) => c.id === customerId)
 
   const subtotalCents = useMemo(
     () =>
@@ -80,7 +82,7 @@ export default function InvoiceFormPage() {
 
   const buildPayload = () => ({
     companyId,
-    customerId,
+    customerId: customer?.id ?? "",
     invoiceNumber: invoiceNumber.trim(),
     invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
     notes: notes.trim() || undefined,
@@ -95,7 +97,7 @@ export default function InvoiceFormPage() {
 
   const validate = (): string | null => {
     if (!companyId) return "No company workspace is selected."
-    if (!customerId) return "Select a customer."
+    if (!customer) return "Select a customer."
     if (!invoiceNumber.trim()) return "Invoice number is required."
     if (items.length === 0) return "Add at least one line item."
     for (const item of items) {
@@ -215,21 +217,13 @@ export default function InvoiceFormPage() {
               <p>Choose a customer and set the invoice date.</p>
             </div>
             <div className="form-grid">
-              <Field label="Customer">
-                <select
-                  value={customerId}
+              <Field label="Customer" hint="Type to search this workspace.">
+                <CustomerPicker
+                  companyId={companyId}
+                  value={customer}
+                  onChange={setCustomer}
                   disabled={readOnly}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                >
-                  {customers.length === 0 && (
-                    <option value="">No customers yet</option>
-                  )}
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
               <Field label="Invoice number">
                 <input
@@ -387,11 +381,11 @@ export default function InvoiceFormPage() {
           <hr />
           <div className="customer-preview">
             <span>Billing to</span>
-            <strong>{selectedCustomer?.name ?? "—"}</strong>
+            <strong>{customer?.name ?? "—"}</strong>
             <p>
-              {selectedCustomer?.email ?? ""}
+              {customer?.email ?? ""}
               <br />
-              {selectedCustomer?.address ?? "No billing address on file"}
+              {customer?.address ?? "No billing address on file"}
             </p>
           </div>
         </aside>
@@ -413,7 +407,7 @@ export default function InvoiceFormPage() {
               Total due: <strong>{money(totalCents)}</strong>
               <br />
               <small>
-                Issued to {selectedCustomer?.name ?? "the selected customer"}
+                Issued to {customer?.name ?? "the selected customer"}
               </small>
             </span>
           </div>

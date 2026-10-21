@@ -1,123 +1,115 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getPlanLimits } from "@/lib/plans"
 import { Role } from "@/generated/prisma/enums"
-
-const inviteSchema = z.object({
-  companyId: z.string().min(1),
-  email: z.string().email(),
-  role: z.enum(["STAFF", "VIEWER"]),
-})
+import { teamInviteSchema } from "@/lib/validation"
+import { requireTenant } from "@/lib/tenant"
+import { OWNER_ROLES } from "@/lib/permissions"
+import {
+  badRequest,
+  conflict,
+  errorResponse,
+  forbidden,
+  notFound,
+  readJson,
+  unauthorized,
+} from "@/lib/http"
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-  const { searchParams } = new URL(req.url)
-  const companyId = searchParams.get("companyId")
-  if (!companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-  const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id, companyId },
-  })
-  if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-  // SRS 3.1 / 3.2 / 3.3 — team membership is an Owner-only area.
-  if (membership.role !== Role.OWNER) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user?.id) {
+      return unauthorized()
+    }
+    const { searchParams } = new URL(req.url)
+    const companyId = searchParams.get("companyId")
+    // SRS 3.1 / 3.2 / 3.3 — team membership is an Owner-only area.
+    const membership = await requireTenant(session.user.id, companyId, OWNER_ROLES)
 
-  const members = await prisma.membership.findMany({
-    where: { companyId },
-    include: {
-      user: { select: { id: true, name: true, email: true, image: true } },
-    },
-    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
-  })
+    const members = await prisma.membership.findMany({
+      where: { companyId: membership.companyId },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+      },
+      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    })
 
-  return NextResponse.json({
-    members: members.map((m) => ({
-      membershipId: m.id,
-      userId: m.user.id,
-      name: m.user.name,
-      email: m.user.email,
-      image: m.user.image,
-      role: m.role,
-      createdAt: m.createdAt,
-    })),
-    viewerRole: membership.role,
-  })
+    return NextResponse.json({
+      members: members.map((m) => ({
+        membershipId: m.id,
+        userId: m.user.id,
+        name: m.user.name,
+        email: m.user.email,
+        image: m.user.image,
+        role: m.role,
+        createdAt: m.createdAt,
+      })),
+      viewerRole: membership.role,
+    })
+  } catch (e) {
+    return errorResponse(e)
+  }
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-  const body = await req.json().catch(() => null)
-  const parsed = inviteSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 })
-  }
-  const { companyId, email, role } = parsed.data
+  try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user?.id) {
+      return unauthorized()
+    }
+    const body = await readJson(req)
+    const parsed = teamInviteSchema.safeParse(body)
+    if (!parsed.success) {
+      return badRequest()
+    }
+    const { companyId, email, role } = parsed.data
 
-  const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id, companyId },
-    include: { company: true },
-  })
-  if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-  if (membership.role !== Role.OWNER) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+    const membership = await requireTenant(session.user.id, companyId, OWNER_ROLES)
+    const tenantId = membership.companyId
 
-  const invitee = await prisma.user.findUnique({ where: { email } })
-  if (!invitee) {
-    return NextResponse.json(
-      { error: "No account with that email. They must register first." },
-      { status: 404 },
-    )
-  }
+    const invitee = await prisma.user.findUnique({ where: { email } })
+    if (!invitee) {
+      return notFound("No account with that email. They must register first.")
+    }
 
-  const existing = await prisma.membership.findUnique({
-    where: { userId_companyId: { userId: invitee.id, companyId } },
-  })
-  if (existing) {
-    return NextResponse.json({ error: "That user is already a member" }, {
-      status: 409,
+    const existing = await prisma.membership.findUnique({
+      where: { userId_companyId: { userId: invitee.id, companyId: tenantId } },
     })
-  }
+    if (existing) {
+      return conflict("That user is already a member")
+    }
 
-  const limits = getPlanLimits(membership.company.subscriptionPlan)
-  const seatCount = await prisma.membership.count({
-    where: { companyId, role: { in: [Role.STAFF, Role.VIEWER] } },
-  })
-  if (seatCount >= limits.seats) {
+    const company = await prisma.company.findUnique({ where: { id: tenantId } })
+    if (!company) {
+      return forbidden()
+    }
+    const limits = getPlanLimits(company.subscriptionPlan)
+    const seatCount = await prisma.membership.count({
+      where: { companyId: tenantId, role: { in: [Role.STAFF, Role.VIEWER] } },
+    })
+    if (seatCount >= limits.seats) {
+      return forbidden(
+        "Plan seat limit reached. Upgrade your plan to add members.",
+      )
+    }
+
+    const created = await prisma.membership.create({
+      data: { userId: invitee.id, companyId: tenantId, role },
+    })
+
     return NextResponse.json(
-      { error: "Plan seat limit reached. Upgrade your plan to add members." },
-      { status: 403 },
+      {
+        membershipId: created.id,
+        userId: invitee.id,
+        name: invitee.name,
+        email: invitee.email,
+        role: created.role,
+      },
+      { status: 201 },
     )
+  } catch (e) {
+    return errorResponse(e)
   }
-
-  const created = await prisma.membership.create({
-    data: { userId: invitee.id, companyId, role },
-  })
-
-  return NextResponse.json(
-    {
-      membershipId: created.id,
-      userId: invitee.id,
-      name: invitee.name,
-      email: invitee.email,
-      role: created.role,
-    },
-    { status: 201 },
-  )
 }

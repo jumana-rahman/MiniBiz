@@ -16,7 +16,7 @@ type Errors = {
 
 export default function CustomerFormPage() {
   const router = useRouter()
-  const { notify, companyId, viewer, role } = useShell()
+  const { notify, companyId, readOnly } = useShell()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
@@ -27,8 +27,6 @@ export default function CustomerFormPage() {
   const [country, setCountry] = useState("United States")
   const [errors, setErrors] = useState<Errors>({})
   const [saving, setSaving] = useState(false)
-
-  const readOnly = viewer || role === "VIEWER"
 
   const address = [street, city, region, postal, country]
     .map((part) => part.trim())

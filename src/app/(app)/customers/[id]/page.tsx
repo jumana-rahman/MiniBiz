@@ -31,7 +31,7 @@ type Invoice = {
 export default function CustomerDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
-  const { notify, companyId, viewer, role } = useShell()
+  const { notify, companyId, readOnly, role } = useShell()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +41,6 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState("")
 
   const id = params?.id as string
-  const readOnly = viewer || role === "VIEWER"
 
   const load = useCallback(() => {
     if (!companyId || !id) return
@@ -267,7 +266,7 @@ export default function CustomerDetailPage() {
                 <span>Billing address</span>
                 <strong>{customer.address || "—"}</strong>
               </div>
-              {role === "OWNER" && !viewer && (
+              {role === "OWNER" && !readOnly && (
                 <div>
                   <span>Danger zone</span>
                   <strong>

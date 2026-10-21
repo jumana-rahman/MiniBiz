@@ -17,7 +17,7 @@ type InvoiceRow = {
   status: string
 }
 
-export function formatMoney(
+function formatMoney(
   amount: number | string | null | undefined,
   currency = "USD",
 ): string {

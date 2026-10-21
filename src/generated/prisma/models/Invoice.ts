@@ -858,7 +858,6 @@ export type InvoiceCreateWithoutCustomerInput = {
 
 export type InvoiceUncheckedCreateWithoutCustomerInput = {
   id?: string
-  companyId: string
   invoiceNumber: string
   status?: $Enums.InvoiceStatus
   invoiceDate?: Date | string
@@ -1069,7 +1068,6 @@ export type InvoiceUncheckedUpdateManyWithoutCompanyInput = {
 
 export type InvoiceCreateManyCustomerInput = {
   id?: string
-  companyId: string
   invoiceNumber: string
   status?: $Enums.InvoiceStatus
   invoiceDate?: Date | string
@@ -1106,7 +1104,6 @@ export type InvoiceUpdateWithoutCustomerInput = {
 
 export type InvoiceUncheckedUpdateWithoutCustomerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  companyId?: Prisma.StringFieldUpdateOperationsInput | string
   invoiceNumber?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumInvoiceStatusFieldUpdateOperationsInput | $Enums.InvoiceStatus
   invoiceDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1125,7 +1122,6 @@ export type InvoiceUncheckedUpdateWithoutCustomerInput = {
 
 export type InvoiceUncheckedUpdateManyWithoutCustomerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  companyId?: Prisma.StringFieldUpdateOperationsInput | string
   invoiceNumber?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumInvoiceStatusFieldUpdateOperationsInput | $Enums.InvoiceStatus
   invoiceDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string

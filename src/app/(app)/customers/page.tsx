@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Search } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { useShell } from "@/components/shell"
 import { Avatar, Button, EmptyState, PageIntro } from "@/components/ui"
 import { Pagination, type PaginationState } from "@/components/pagination"
@@ -25,10 +26,11 @@ const emptyPagination: PaginationState = {
 
 export default function CustomersPage() {
   const router = useRouter()
-  const { viewer, companyId } = useShell()
+  const { companyId, readOnly } = useShell()
   const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [pagination, setPagination] = useState(emptyPagination)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [search, setSearch] = useState("")
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
@@ -39,11 +41,15 @@ export default function CustomersPage() {
     const params = new URLSearchParams({ companyId, page: String(page) })
     if (query) params.set("q", query)
     fetch(`/api/customers?${params}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((data) => {
         if (data?.customers) setCustomers(data.customers)
         if (data?.pagination) setPagination(data.pagination)
+        setError("")
+        setLoading(false)
+      })
+      .catch(() => {
+        setError("Could not load customers. Please try again.")
         setLoading(false)
       })
   }, [companyId, page, query])
@@ -63,13 +69,16 @@ export default function CustomersPage() {
         title="Customers"
         text="Manage customer details and view their invoice history."
         actions={
-          !viewer && (
+          !readOnly && (
             <Button icon={Plus} onClick={() => router.push(routes.customerNew)}>
               Add customer
             </Button>
           )
         }
       />
+      {error && (
+        <ErrorBanner title="Could not load customers">{error}</ErrorBanner>
+      )}
       <section className="card table-card">
         <div className="toolbar">
           <div className="search">
@@ -88,7 +97,7 @@ export default function CustomersPage() {
             title="No customers yet"
             text="Add your first customer to start creating invoices."
             action={
-              !viewer && (
+              !readOnly && (
                 <Button
                   icon={Plus}
                   onClick={() => router.push(routes.customerNew)}

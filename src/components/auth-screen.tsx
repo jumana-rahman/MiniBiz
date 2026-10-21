@@ -18,6 +18,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -28,7 +29,11 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
       if (mode === "login") {
         const email = formData.get("email") as string
         const password = formData.get("password") as string
-        const res = await authClient.signIn.email({ email, password })
+        const res = await authClient.signIn.email({
+          email,
+          password,
+          rememberMe,
+        })
         if (res.error) {
           setError(res.error.message || "Sign in failed")
         } else {
@@ -151,7 +156,12 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             {mode === "login" && (
               <div className="form-options">
                 <label>
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    name="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
                   Remember me
                 </label>
               </div>

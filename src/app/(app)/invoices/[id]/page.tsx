@@ -51,7 +51,7 @@ type EditableItem = { description: string; quantity: string; unitPrice: string }
 export default function InvoiceDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
-  const { notify, companyId, companyName, viewer, role } = useShell()
+  const { notify, companyId, companyName, readOnly, role } = useShell()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -65,7 +65,6 @@ export default function InvoiceDetailPage() {
   const [issueModal, setIssueModal] = useState(false)
 
   const id = params?.id as string
-  const readOnly = viewer || role === "VIEWER"
   const locked = invoice?.status === "ISSUED"
 
   const load = useCallback(() => {

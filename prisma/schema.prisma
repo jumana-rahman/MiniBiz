@@ -149,6 +149,9 @@ model Customer {
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   invoices Invoice[]
 
+  // Referenced by the invoice's composite foreign key, so a customer can only
+  // be attached to an invoice of the same company.
+  @@unique([companyId, id])
   @@unique([companyId, email])
   @@index([companyId])
   @@index([email])
@@ -173,7 +176,9 @@ model Invoice {
   updatedAt   DateTime      @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  // Composite foreign key: the customer must belong to the same company as
+  // the invoice. The database rejects a cross-tenant link, not just the API.
+  customer    Customer     @relation(fields: [companyId, customerId], references: [companyId, id], onDelete: Restrict)
   invoiceItems InvoiceItem[]
 
   @@unique([companyId, invoiceNumber])

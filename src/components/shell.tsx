@@ -26,7 +26,7 @@ import {
   X,
   Check,
 } from "lucide-react"
-import { Avatar } from "./ui"
+import { Avatar, Button, EmptyState } from "./ui"
 import { authClient } from "@/lib/auth-client"
 import { formatLimit } from "@/lib/plans"
 import { routes, type Screen } from "@/lib/routes"
@@ -45,15 +45,20 @@ const nav: {
 ]
 
 type ShellContextValue = {
+  // Demo-only preview of the Viewer interface. It never changes permissions.
   viewer: boolean
-  setViewer: (value: boolean) => void
   notify: (message: string) => void
   companyId: string | null
   companyName: string | null
   role: string | null
-  plan: string | null
-  isPlatformAdmin: boolean
-  refresh: () => void
+  // The signed-in user's display name, used for greetings.
+  userName: string | null
+  // The signed-in user may create and edit records in this workspace.
+  canWrite: boolean
+  // The current screen must be read-only (Viewer role or preview mode).
+  readOnly: boolean
+  // A platform administrator without any company membership.
+  platformOnly: boolean
 }
 
 const ShellContext = createContext<ShellContextValue | null>(null)
@@ -62,6 +67,34 @@ export function useShell(): ShellContextValue {
   const ctx = useContext(ShellContext)
   if (!ctx) throw new Error("useShell must be used inside the app shell")
   return ctx
+}
+
+function PlatformNotice() {
+  const router = useRouter()
+  return (
+    <div className="page">
+      <EmptyState
+        title="Platform administrator"
+        text="This account has platform-level access only and is not attached to a company workspace. Company records stay inside each tenant, so you manage plans and usage from the Super Admin console."
+        action={
+          <Button onClick={() => router.push(routes.admin)}>
+            Open the Super Admin console
+          </Button>
+        }
+      />
+    </div>
+  )
+}
+
+function NoWorkspaceNotice() {
+  return (
+    <div className="page">
+      <EmptyState
+        title="No company workspace"
+        text="Your account is not a member of any company yet, so there is nothing to show here. Ask a company owner for an invitation, or sign up again to start a new company."
+      />
+    </div>
+  )
 }
 
 type CompanyInfo = {
@@ -90,6 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<CompanyInfo[]>([])
   const [activeCompany, setActiveCompany] = useState<CompanyInfo | null>(null)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [sessionLoaded, setSessionLoaded] = useState(false)
   const [usage, setUsage] = useState<{
     customers: { used: number; limit: number }
     invoices: { used: number; limit: number }
@@ -116,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )
           })
         }
+        setSessionLoaded(true)
       })
   }, [])
 
@@ -163,29 +198,77 @@ export function AppShell({ children }: { children: ReactNode }) {
       .map((p) => p[0]?.toUpperCase())
       .join("") || "U"
 
-  const companyName = activeCompany?.name || "Workspace"
-  const planName = activeCompany?.plan || "TRIAL"
-  const isOwner = activeCompany?.role === "OWNER"
-  const visibleNav = nav.filter((item) => !item.ownerOnly || isOwner)
-  const userRole =
-    activeCompany?.role === "OWNER"
+  // A platform administrator has no company membership, so there is no
+  // workspace to scope. They are routed to the platform console instead of
+  // the tenant screens (SRS §7.7 — platform access is separate).
+  const platformOnly =
+    isPlatformAdmin && !activeCompany && companies.length === 0
+  const role = activeCompany?.role ?? null
+  const canWrite = role === "OWNER" || role === "STAFF"
+  // Default deny: until the membership is known nothing may be written.
+  const readOnly = viewer || !canWrite
+
+  const companyName =
+    activeCompany?.name ?? (platformOnly ? "Platform console" : "Workspace")
+  const planName = activeCompany?.plan ?? (platformOnly ? "PLATFORM" : "—")
+  const isOwner = role === "OWNER"
+  const visibleNav = platformOnly
+    ? []
+    : nav.filter((item) => !item.ownerOnly || isOwner)
+  const userRole = platformOnly
+    ? "Super Admin"
+    : role === "OWNER"
       ? "Owner"
-      : activeCompany?.role === "STAFF"
+      : role === "STAFF"
         ? "Staff"
         : "Viewer"
+
+  const pageTitle = platformOnly
+    ? "Super Admin"
+    : pathname === "/"
+      ? "Dashboard"
+      : pathname === "/dashboard"
+        ? "Dashboard"
+        : pathname === "/customers"
+          ? "Customers"
+          : pathname.startsWith("/customers/new")
+            ? "Customer"
+            : pathname.startsWith("/customers/")
+              ? "Customer details"
+              : pathname === "/invoices"
+                ? "Invoices"
+                : pathname.startsWith("/invoices/new")
+                  ? "New invoice"
+                  : pathname.startsWith("/invoices/")
+                    ? "Invoice details"
+                    : pathname === "/team"
+                      ? "Team"
+                      : pathname === "/subscription"
+                        ? "Subscription"
+                        : pathname === "/admin"
+                          ? "Super Admin"
+                          : "MiniBiz"
+
+  // A platform administrator has no tenant workspace, so the tenant screens
+  // could never load. Send them straight to the platform console.
+  useEffect(() => {
+    if (platformOnly && pathname !== routes.admin) {
+      router.replace(routes.admin)
+    }
+  }, [platformOnly, pathname, router])
 
   return (
     <ShellContext.Provider
       value={{
         viewer,
-        setViewer,
         notify,
         companyId: activeCompany?.id ?? null,
         companyName: activeCompany?.name ?? null,
-        role: activeCompany?.role ?? null,
-        plan: planName,
-        isPlatformAdmin,
-        refresh: loadSession,
+        role,
+        userName: user?.name ?? user?.email ?? null,
+        canWrite,
+        readOnly,
+        platformOnly,
       }}
     >
       <div className={`app-shell ${collapsed ? "is-collapsed" : ""}`}>
@@ -207,13 +290,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="workspace-card">
             <span className="workspace-logo">
-              {(companyName.slice(0, 2) || "MB").toUpperCase()}
+              {platformOnly
+                ? "MB"
+                : (companyName.slice(0, 2) || "MB").toUpperCase()}
             </span>
             {!collapsed && (
               <>
                 <span className="workspace-copy">
                   <strong>{companyName}</strong>
-                  <small>{planName} plan</small>
+                  <small>
+                    {platformOnly ? "Platform access" : `${planName} plan`}
+                  </small>
                 </span>
                 <ChevronRight size={14} />
               </>
@@ -237,7 +324,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </select>
           )}
           <nav className="main-nav">
-            {!collapsed && <span className="nav-label">Workspace</span>}
+            {!collapsed && !platformOnly && (
+              <span className="nav-label">Workspace</span>
+            )}
             {visibleNav.map((item) => {
               const NavIcon = item.icon
               return (
@@ -321,34 +410,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Menu />
               </button>
-              <h1>
-                {pathname === "/"
-                  ? "Dashboard"
-                  : pathname === "/dashboard"
-                    ? "Dashboard"
-                    : pathname === "/customers"
-                      ? "Customers"
-                      : pathname.startsWith("/customers/new")
-                        ? "Customer"
-                        : pathname.startsWith("/customers/")
-                          ? "Customer details"
-                          : pathname === "/invoices"
-                            ? "Invoices"
-                            : pathname.startsWith("/invoices/new")
-                              ? "New invoice"
-                              : pathname.startsWith("/invoices/")
-                                ? "Invoice details"
-                                : pathname === "/team"
-                                  ? "Team"
-                                  : pathname === "/subscription"
-                                    ? "Subscription"
-                                    : pathname === "/admin"
-                                      ? "Super Admin"
-                                      : "MiniBiz"}
-              </h1>
+              <h1>{pageTitle}</h1>
             </div>
             <div className="topbar-actions">
-              {activeCompany?.role !== "VIEWER" && (
+              {!platformOnly && activeCompany?.role !== "VIEWER" && (
                 <div className="role-toggle">
                   <span>Viewer preview</span>
                   <button
@@ -382,7 +447,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button onClick={() => setViewer(false)}>Exit preview</button>
               </div>
             )}
-            {children}
+            {platformOnly && pathname !== routes.admin ? (
+              <PlatformNotice />
+            ) : sessionLoaded && !activeCompany ? (
+              <NoWorkspaceNotice />
+            ) : (
+              children
+            )}
           </main>
         </div>
 

@@ -225,6 +225,7 @@ export type CustomerOrderByWithRelationInput = {
 
 export type CustomerWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  companyId_id?: Prisma.CustomerCompanyIdIdCompoundUniqueInput
   companyId_email?: Prisma.CustomerCompanyIdEmailCompoundUniqueInput
   AND?: Prisma.CustomerWhereInput | Prisma.CustomerWhereInput[]
   OR?: Prisma.CustomerWhereInput[]
@@ -238,7 +239,7 @@ export type CustomerWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"Customer"> | Date | string
   company?: Prisma.XOR<Prisma.CompanyScalarRelationFilter, Prisma.CompanyWhereInput>
   invoices?: Prisma.InvoiceListRelationFilter
-}, "id" | "companyId_email">
+}, "id" | "companyId_id" | "companyId_email">
 
 export type CustomerOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -356,6 +357,11 @@ export type CustomerListRelationFilter = {
 
 export type CustomerOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type CustomerCompanyIdIdCompoundUniqueInput = {
+  companyId: string
+  id: string
 }
 
 export type CustomerCompanyIdEmailCompoundUniqueInput = {
