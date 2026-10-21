@@ -1,28 +1,34 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { customerSlug, customers, routes, type Screen } from "@/components/data"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Avatar, Button, EmptyState, PageIntro } from "@/components/ui"
 
 export default function CustomersPage() {
   const router = useRouter()
-  const { viewer } = useShell()
+  const { viewer, companyId } = useShell()
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
 
-  const go = (screen: Screen) => router.push(routes[screen])
+  useEffect(() => {
+    if (!companyId) return
+    fetch(`/api/customers?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((data) => {
+        if (data?.customers) setCustomers(data.customers)
+        setLoading(false)
+      })
+  }, [companyId])
 
-  const data = useMemo(
-    () =>
-      customers.filter((c) =>
-        `${c.name} ${c.email} ${c.company}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-      ),
-    [search],
-  )
+  const filtered = customers.filter((c: any) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return `${c.name || ""} ${c.email || ""}`.toLowerCase().includes(q)
+  })
 
   return (
     <div className="page">
@@ -31,65 +37,76 @@ export default function CustomersPage() {
         text="Manage customer details and view their invoice history."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => go("customer-form")}>
+            <Button icon="plus" onClick={() => router.push("/customers/new")}>
               Add customer
             </Button>
           )
         }
       />
-      <section className="card table-card">
-        <div className="toolbar">
-          <div className="search">
+      <div className="panel">
+        <div className="panel-header">
+          <div className="search-field">
             <Icon name="search" />
             <input
+              placeholder="Search customers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search customers..."
             />
           </div>
-          <Button kind="secondary" icon="filter">
-            Filters
-          </Button>
         </div>
-        {data.length ? (
+        {loading ? (
+          <EmptyState
+            title="Loading..."
+            text="Fetching customers."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="No customers yet"
+            text="Add your first customer to start creating invoices."
+            action={
+              !viewer && (
+                <Button icon="plus" onClick={() => router.push("/customers/new")}>
+                  Add customer
+                </Button>
+              )
+            }
+          />
+        ) : (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th>Company</th>
-                  <th>Invoices</th>
-                  <th>Total value</th>
-                  <th>Last activity</th>
+                  <th>Email</th>
+                  <th>Phone</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {data.map((c) => (
+                {filtered.map((c: any) => (
                   <tr
-                    key={c.email}
-                    onClick={() =>
-                      router.push(
-                        `${routes.customers}/${customerSlug(c.name)}`,
-                      )
-                    }
+                    key={c.id}
                     className="clickable"
+                    onClick={() => router.push(`/customers/${c.id}`)}
                   >
                     <td>
-                      <div className="person-cell">
-                        <Avatar initials={c.initials} color={c.color} />
-                        <span>
+                      <div className="customer-cell">
+                        <Avatar
+                          initials={(c.name || "C")
+                            .split(" ")
+                            .map((p: string) => p[0])
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase()}
+                          color="sage"
+                        />
+                        <div>
                           <strong>{c.name}</strong>
-                          <small>{c.email}</small>
-                        </span>
+                        </div>
                       </div>
                     </td>
-                    <td>{c.company}</td>
-                    <td>{c.invoices}</td>
-                    <td>
-                      <strong>{c.value}</strong>
-                    </td>
-                    <td>May {12 + c.invoices}, 2025</td>
+                    <td>{c.email}</td>
+                    <td>{c.phone || "—"}</td>
                     <td>
                       <button className="row-action">
                         <Icon name="more" />
@@ -100,27 +117,8 @@ export default function CustomersPage() {
               </tbody>
             </table>
           </div>
-        ) : (
-          <EmptyState
-            title="No customers found"
-            text="Try adjusting your search, or add a new customer."
-            action={
-              <Button kind="secondary" onClick={() => setSearch("")}>
-                Clear search
-              </Button>
-            }
-          />
         )}
-        <div className="pagination">
-          <span>Showing 1–6 of 48 customers</span>
-          <div>
-            <Button kind="secondary" disabled>
-              Previous
-            </Button>
-            <Button kind="secondary">Next</Button>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
   )
 }

@@ -3,9 +3,14 @@
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
-import { routes } from "./data"
 import { Icon } from "./icon"
 import { Badge, BrandMark, Button, Field } from "./ui"
+
+const routes = {
+  dashboard: "/dashboard",
+  login: "/login",
+  register: "/register",
+} as const
 
 export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const router = useRouter()

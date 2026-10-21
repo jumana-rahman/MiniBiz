@@ -1,23 +1,50 @@
 "use client"
 
-import { InvoiceTable, useGo } from "@/components/invoice-table"
-import { invoices } from "@/components/data"
+import { InvoiceTable } from "@/components/invoice-table"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Badge, Button, PageIntro, Stat } from "@/components/ui"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { formatLimit } from "@/lib/subscription"
+
+type DashboardData = {
+  company: { id: string; name: string; slug: string; plan: string }
+  role: string
+  stats: { customers: number; invoices: number; drafts: number; issued: number; issuedTotal: number }
+  usage: { customers: { used: number; limit: number }; invoices: { used: number; limit: number }; seats: { used: number; limit: number } }
+}
 
 export default function DashboardPage() {
-  const go = useGo()
-  const { viewer } = useShell()
+  const { viewer, companyId } = useShell()
+  const router = useRouter()
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!companyId) return
+    fetch(`/api/dashboard?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => {
+        setData(d)
+        setLoading(false)
+      })
+  }, [companyId])
+
+  const companyName = data?.company?.name || "your business"
+  const firstName = (companyName.split(" ")[0] || "there")
+  const plan = data?.company?.plan || "TRIAL"
+  const issuedTotal = (data?.stats?.issuedTotal ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" })
 
   return (
     <div className="page">
       <PageIntro
-        title="Good morning, Alex"
-        text="Here’s what’s happening with Acme & Bloom today."
+        title={`Hello, ${firstName}`}
+        text={`Here's what's happening with ${companyName} today.`}
         actions={
-          !viewer && (
-            <Button icon="plus" onClick={() => go("invoice-form")}>
+          !viewer && data?.role !== "VIEWER" && (
+            <Button icon="plus" onClick={() => router.push("/invoices/new")}>
               Create invoice
             </Button>
           )
@@ -26,129 +53,81 @@ export default function DashboardPage() {
       <div className="stats-grid">
         <Stat
           label="Total customers"
-          value="48"
-          note="+6 this month"
+          value={loading ? "—" : String(data?.stats?.customers ?? 0)}
+          note={data?.usage ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)} used` : ""}
           icon="users"
-          positive
         />
         <Stat
-          label="Invoices issued"
-          value="124"
-          note="+14 this month"
+          label="Draft invoices"
+          value={loading ? "—" : String(data?.stats?.drafts ?? 0)}
+          note={data?.usage ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)} used` : ""}
           icon="file"
-          positive
         />
         <Stat
           label="Issued value"
-          value="$84,620"
-          note="+12.4% vs. last month"
+          value={loading ? "—" : issuedTotal}
+          note={`${data?.stats?.issued ?? 0} issued invoices`}
           icon="trend"
-          positive
+          positive={(data?.stats?.issued ?? 0) > 0}
         />
         <Stat
           label="Current plan"
-          value="Pro"
-          note="Renews June 12"
+          value={plan}
+          note="Multi-tenant workspace"
           icon="card"
         />
       </div>
       <div className="dashboard-grid">
-        <section className="card chart-card">
+        <section className="card">
           <div className="card-heading">
             <div>
-              <h3>Invoice value</h3>
-              <p>Issued invoice value over the last 6 months</p>
+              <h3>Recent invoices</h3>
+              <p>Latest invoices for {companyName}</p>
             </div>
-            <select aria-label="Chart period">
-              <option>Last 6 months</option>
-              <option>Last 12 months</option>
-            </select>
+            <Button kind="ghost" onClick={() => router.push("/invoices")}>
+              View all
+            </Button>
           </div>
-          <div className="chart-summary">
-            <strong>$42,480</strong>
-            <Badge tone="green">+18.2%</Badge>
-          </div>
-          <div className="chart">
-            <div className="y-labels">
-              <span>$12k</span>
-              <span>$8k</span>
-              <span>$4k</span>
-              <span>$0</span>
-            </div>
-            <div className="bars">
-              {[
-                ["Dec", 42],
-                ["Jan", 54],
-                ["Feb", 47],
-                ["Mar", 71],
-                ["Apr", 63],
-                ["May", 88],
-              ].map(([m, h]) => (
-                <div className="bar-wrap" key={m}>
-                  <div className="bar" style={{ height: `${h}%` }}>
-                    <span />
-                  </div>
-                  <small>{m}</small>
-                </div>
-              ))}
-            </div>
-          </div>
+          <InvoiceTable data={[]} />
         </section>
-        <section className="card activity-card">
+        <section className="card">
           <div className="card-heading">
             <div>
-              <h3>Quick overview</h3>
-              <p>Invoice status summary</p>
+              <h3>Workspace summary</h3>
+              <p>Plan usage at a glance</p>
             </div>
           </div>
-          <div className="donut-wrap">
-            <div className="donut">
+          <div className="activity-list">
+            <article className="activity-item">
+              <span className="activity-dot" />
               <div>
-                <strong>18</strong>
-                <span>Total</span>
+                <strong>Customers</strong>
+                <p>
+                  {data?.usage ? `${data.usage.customers.used} / ${formatLimit(data.usage.customers.limit)}` : "—"}
+                </p>
               </div>
-            </div>
-          </div>
-          <div className="legend">
-            <div>
-              <span>
-                <i className="dot emerald" />
-                Issued
-              </span>
-              <strong>12</strong>
-            </div>
-            <div>
-              <span>
-                <i className="dot amber" />
-                Draft
-              </span>
-              <strong>6</strong>
-            </div>
-          </div>
-          <div className="plan-usage">
-            <div>
-              <span>Plan usage</span>
-              <strong>36%</strong>
-            </div>
-            <div className="progress">
-              <span style={{ width: "36%" }} />
-            </div>
-            <small>18 of 50 monthly invoices</small>
+            </article>
+            <article className="activity-item">
+              <span className="activity-dot" />
+              <div>
+                <strong>Invoices</strong>
+                <p>
+                  {data?.usage ? `${data.usage.invoices.used} / ${formatLimit(data.usage.invoices.limit)}` : "—"}
+                </p>
+              </div>
+            </article>
+            <article className="activity-item">
+              <span className="activity-dot" />
+              <div>
+                <strong>Team seats</strong>
+                <p>
+                  {data?.usage ? `${data.usage.seats.used} / ${formatLimit(data.usage.seats.limit)}` : "—"}
+                </p>
+              </div>
+            </article>
           </div>
         </section>
       </div>
-      <section className="card table-card">
-        <div className="card-heading">
-          <div>
-            <h3>Recent invoices</h3>
-            <p>Your latest customer invoices</p>
-          </div>
-          <button className="text-link" onClick={() => go("invoices")}>
-            View all <Icon name="chevron" size={14} />
-          </button>
-        </div>
-        <InvoiceTable data={invoices.slice(0, 4)} />
-      </section>
     </div>
   )
 }

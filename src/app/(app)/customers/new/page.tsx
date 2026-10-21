@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { routes, type Screen } from "@/components/data"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Button, Field, PageIntro } from "@/components/ui"

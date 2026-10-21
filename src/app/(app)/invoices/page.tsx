@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { invoices, routes, type Screen } from "@/components/data"
 import { Icon } from "@/components/icon"
 import { InvoiceTable } from "@/components/invoice-table"
 import { useShell } from "@/components/shell"
@@ -10,13 +9,24 @@ import { Button, PageIntro } from "@/components/ui"
 
 export default function InvoicesPage() {
   const router = useRouter()
-  const { viewer } = useShell()
+  const { viewer, companyId } = useShell()
   const [filter, setFilter] = useState("All")
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const go = (screen: Screen) => router.push(routes[screen])
+  useEffect(() => {
+    if (!companyId) return
+    fetch(`/api/invoices?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((data) => {
+        if (data?.invoices) setInvoices(data.invoices)
+        setLoading(false)
+      })
+  }, [companyId])
 
   const data = invoices.filter(
-    (i) => filter === "All" || i.status === filter,
+    (i: any) => filter === "All" || i.status === filter,
   )
 
   return (
@@ -26,50 +36,37 @@ export default function InvoicesPage() {
         text="Create, issue, and track invoices for your customers."
         actions={
           !viewer && (
-            <Button icon="plus" onClick={() => go("invoice-form")}>
+            <Button icon="plus" onClick={() => router.push("/invoices/new")}>
               Create invoice
             </Button>
           )
         }
       />
-      <section className="card table-card">
-        <div className="tabs">
-          {["All", "Draft", "Issued"].map((t) => (
-            <button
-              key={t}
-              className={filter === t ? "active" : ""}
-              onClick={() => setFilter(t)}
-            >
-              {t}
-              <span>{t === "All" ? 124 : t === "Draft" ? 8 : 116}</span>
-            </button>
-          ))}
-        </div>
-        <div className="toolbar">
-          <div className="search">
-            <Icon name="search" />
-            <input placeholder="Search invoice or customer..." />
-          </div>
-          <div className="toolbar-right">
-            <Button kind="secondary" icon="filter">
-              Filters
-            </Button>
-            <Button kind="secondary" icon="download">
-              Export
-            </Button>
+      <div className="panel">
+        <div className="panel-header">
+          <div className="tab-group">
+            {["All", "Draft", "Issued"].map((tab) => (
+              <button
+                key={tab}
+                className={filter === tab ? "active" : ""}
+                onClick={() => setFilter(tab)}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
-        <InvoiceTable data={data} />
-        <div className="pagination">
-          <span>Showing 1–5 of 124 invoices</span>
-          <div>
-            <Button kind="secondary" disabled>
-              Previous
-            </Button>
-            <Button kind="secondary">Next</Button>
-          </div>
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+        ) : (
+          <InvoiceTable data={data} />
+        )}
+        <div className="panel-footer">
+          <span>
+            Showing {data.length} of {invoices.length} invoices
+          </span>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

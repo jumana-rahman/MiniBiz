@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { routes, type Screen } from "@/components/data"
 import { Icon } from "@/components/icon"
 import { useShell } from "@/components/shell"
 import { Button, Field, Modal, PageIntro } from "@/components/ui"
