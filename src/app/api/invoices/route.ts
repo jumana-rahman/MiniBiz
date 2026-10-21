@@ -4,21 +4,28 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getPlanLimits } from "@/lib/subscription";
+import { toCents, fromCents, lineTotalCents } from "@/lib/money";
 import { Role, InvoiceStatus } from "@/../src/generated/prisma/client";
 
 const schema = z.object({
   companyId: z.string().min(1),
   customerId: z.string().min(1),
-  invoiceNumber: z.string().min(1),
-  currency: z.string().optional(),
-  notes: z.string().optional(),
+  invoiceNumber: z
+    .string()
+    .trim()
+    .min(1, "Invoice number is required")
+    .max(50, "Invoice number must be 50 characters or fewer")
+    .regex(/^[A-Za-z0-9][A-Za-z0-9\-_/#. ]*$/, "Invoice number contains invalid characters"),
+  invoiceDate: z.coerce.date().optional(),
+  currency: z.string().max(10).optional(),
+  notes: z.string().max(2000).optional(),
   items: z.array(z.object({
-    description: z.string().min(1),
-    quantity: z.number().positive(),
-    unitPrice: z.number().positive(),
-  })).min(1),
-  tax: z.number().nonnegative().optional(),
-  discount: z.number().nonnegative().optional(),
+    description: z.string().min(1, "Item description is required").max(500),
+    quantity: z.number().finite().positive("Quantity must be positive").max(1_000_000),
+    unitPrice: z.number().finite().nonnegative("Unit price cannot be negative").max(1_000_000_000),
+  })).min(1, "At least one line item is required").max(100),
+  tax: z.number().finite().nonnegative().max(1_000_000_000).optional(),
+  discount: z.number().finite().nonnegative().max(1_000_000_000).optional(),
 });
 
 export async function GET(req: Request) {
@@ -50,12 +57,15 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+      { status: 400 },
+    );
   }
-  const { companyId, customerId, invoiceNumber, currency, notes, items, tax, discount } = parsed.data;
+  const { companyId, customerId, invoiceNumber, invoiceDate, currency, notes, items, tax, discount } = parsed.data;
   const membership = await prisma.membership.findFirst({
     where: { userId: session.user.id, companyId },
   });
@@ -81,21 +91,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Subscription limit exceeded" }, { status: 403 });
   }
 
-  let subtotal = 0;
+  let subtotalCents = 0;
   const lineItems = items.map((item) => {
-    const amount = Math.round(item.quantity * item.unitPrice * 100) / 100;
-    subtotal += amount;
+    const cents = lineTotalCents(item.quantity, toCents(item.unitPrice));
+    subtotalCents += cents;
     return {
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      lineTotal: amount,
+      lineTotal: fromCents(cents),
     };
   });
 
   const taxVal = tax || 0;
   const discountVal = discount || 0;
-  const total = Math.round((subtotal + taxVal - discountVal) * 100) / 100;
+  const totalCents = subtotalCents + toCents(taxVal) - toCents(discountVal);
 
   try {
     const invoice = await prisma.invoice.create({
@@ -103,18 +113,19 @@ export async function POST(req: Request) {
         companyId,
         customerId,
         invoiceNumber,
+        ...(invoiceDate ? { invoiceDate } : {}),
         status: InvoiceStatus.DRAFT,
-        subtotal,
+        subtotal: fromCents(subtotalCents),
         tax: taxVal,
         discount: discountVal,
-        total,
+        total: fromCents(totalCents),
         currency: currency || "USD",
         notes: notes || null,
         invoiceItems: {
           create: lineItems,
         },
       },
-      include: { invoiceItems: true },
+      include: { invoiceItems: true, customer: true },
     });
     await prisma.company.update({
       where: { id: companyId },
@@ -125,6 +136,7 @@ export async function POST(req: Request) {
     if (e.code === "P2002") {
       return NextResponse.json({ error: "Invoice number already exists" }, { status: 409 });
     }
+    console.error("invoice create failed:", e);
     return NextResponse.json({ error: "Failed to create invoice" }, { status: 500 });
   }
 }

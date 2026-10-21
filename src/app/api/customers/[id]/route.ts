@@ -100,7 +100,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  await prisma.customer.delete({ where: { id } });
+  try {
+    await prisma.customer.delete({ where: { id } });
+  } catch (e: any) {
+    if (e?.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete a customer that has invoices" },
+        { status: 409 },
+      );
+    }
+    console.error("customer delete failed:", e);
+    return NextResponse.json({ error: "Failed to delete customer" }, { status: 500 });
+  }
   await prisma.company.update({
     where: { id: companyId },
     data: { customersCount: { decrement: 1 } },
