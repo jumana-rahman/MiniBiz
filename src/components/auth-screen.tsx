@@ -36,13 +36,20 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
         if (res.error) {
           setError(res.error.message || "Sign up failed")
         } else {
-          try {
-            await fetch("/api/auth/register-company", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ companyName }),
-            })
-          } catch {}
+          if (!companyName) {
+            setError("Company name is required")
+            return
+          }
+          const reg = await fetch("/api/auth/register-company", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyName }),
+          }).catch(() => null)
+          if (!reg?.ok) {
+            const data = await reg?.json().catch(() => null)
+            setError(data?.error || "Could not create your company")
+            return
+          }
           router.push(routes.dashboard)
         }
       }
@@ -117,12 +124,13 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
                   <input name="name" placeholder="Alex Morgan" />
                 </Field>
                 <Field label="Company name">
-                  <input placeholder="Acme & Bloom" />
+                  <input name="company" placeholder="Acme & Bloom" />
                 </Field>
               </>
             )}
             <Field label="Work email">
               <input
+                name="email"
                 type="email"
                 defaultValue={mode === "login" ? "alex@acmebloom.com" : ""}
                 placeholder="you@company.com"
@@ -131,6 +139,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             <Field label="Password">
               <div className="password-field">
                 <input
+                  name="password"
                   type="password"
                   defaultValue={mode === "login" ? "password123" : ""}
                   placeholder="At least 8 characters"
