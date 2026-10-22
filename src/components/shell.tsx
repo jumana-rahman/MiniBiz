@@ -30,6 +30,7 @@ import { Avatar, Button, EmptyState } from "./ui"
 import { authClient } from "@/lib/auth-client"
 import { formatLimit } from "@/lib/plans"
 import { routes, type Screen } from "@/lib/routes"
+import { showsNoWorkspaceNotice } from "@/lib/shell-view"
 
 const nav: {
   id: Screen
@@ -482,7 +483,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
             {platformOnly && pathname !== routes.admin ? (
               <PlatformNotice />
-            ) : sessionLoaded && !activeCompany ? (
+            ) : showsNoWorkspaceNotice({
+                isPlatformAdmin,
+                sessionLoaded,
+                hasActiveCompany: Boolean(activeCompany),
+              }) ? (
               <NoWorkspaceNotice />
             ) : (
               children
