@@ -10,4 +10,3 @@ build/
 logs/
 *.log
 .tmp-*
-SRS.md
