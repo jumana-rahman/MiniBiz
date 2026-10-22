@@ -23,7 +23,7 @@ A multi-tenant business management application for small companies, built for th
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js, React, TypeScript |
+| Framework | Next.js, TypeScript |
 | Styling | Tailwind CSS |
 | Database | PostgreSQL |
 | ORM | Prisma |
@@ -33,39 +33,105 @@ A multi-tenant business management application for small companies, built for th
 
 ## Getting Started
 
-### Requirements
-Node.js, npm, and PostgreSQL.
+Follow these steps to run MiniBiz locally after cloning the repository.
 
-### 1. Install dependencies
+### Requirements
+
+Install the following before starting:
+
+- Node.js and npm
+- PostgreSQL
+- Git
+
+You can use pgAdmin to create and manage your local PostgreSQL database.
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/jumana-rahman/MiniBiz.git
+cd MiniBiz
+```
+
+### 2. Install dependencies
+
+Run the following command from the project root:
 
 ```bash
 npm install
 ```
 
-### 2. Configure environment variables
+This installs the project dependencies defined in `package.json`.
 
-Copy `.env.example` to `.env` and configure:
+### 3. Create a local PostgreSQL database
 
-- `DATABASE_URL` — PostgreSQL connection string
-- `BETTER_AUTH_SECRET` — a secure random secret
-- `BETTER_AUTH_URL` — application URL, such as `http://localhost:3000`
+Start PostgreSQL server and open pgAdmin.
 
-Use your own local database and never commit `.env` or real secrets.
+Create a new database, for example:
 
-### 3. Apply migrations and seed demo data
+```text
+minibiz
+```
+
+### 4. Configure environment variables
+
+Copy `.env.example` to `.env` in the project root.
+
+On Windows Command Prompt:
+
+```cmd
+copy .env.example .env
+```
+
+On macOS, Linux, or Git Bash:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and configure the required environment variables using local settings.
+
+At minimum, configure the following:
+
+```env
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/minibiz"
+BETTER_AUTH_SECRET="YOUR_GENERATED_SECRET"
+BETTER_AUTH_URL="http://localhost:3000"
+```
+
+Replace `YOUR_PASSWORD` with your local PostgreSQL password and `YOUR_GENERATED_SECRET` with a securely generated secret.
+
+The database URL must match your PostgreSQL username, password, host, port, and database name. Configure any additional variables listed in `.env.example`.
+
+### 5. Apply Prisma database migrations
+
+Run:
 
 ```bash
 npx prisma migrate deploy
+```
+
+This applies the existing Prisma migrations and creates the database tables required by MiniBiz.
+
+### 6. Seed the database with demo data
+
+After the migrations complete successfully, run:
+
+```bash
 npm run seed
 ```
 
-### 4. Start the application
+### 7. Start the application
+
+Run:
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open [http://localhost:3000](http://localhost:3000) in browser.
+
+Sign in with a seeded demo account to explore the corresponding company workspace and role permissions.
+
 
 ## Available Scripts
 
@@ -154,7 +220,6 @@ The application is intended to be deployed on Railway with a PostgreSQL database
 - Trial does not expire automatically.
 - Invitations do not send email; invitees must register first.
 - Issued invoices are locked; voiding and credit-note workflows are not included.
-
 
 ## Time Spent
 
