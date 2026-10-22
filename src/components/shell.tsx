@@ -105,6 +105,12 @@ type CompanyInfo = {
   role: string
 }
 
+const roleLabel: Record<string, string> = {
+  OWNER: "Owner",
+  STAFF: "Staff",
+  VIEWER: "Viewer",
+}
+
 type UserInfo = {
   id: string
   name: string | null
@@ -138,17 +144,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         setIsPlatformAdmin(Boolean(data?.isPlatformAdmin))
         if (data?.companies?.length) {
           setCompanies(data.companies)
-          setActiveCompany((current) => {
-            const match = data.companies.find(
-              (c: CompanyInfo) =>
-                c.id ===
-                current?.id,
-            )
-            return (
-              match ??
-              data.companies[0]
-            )
-          })
+          // The server decides which workspace is active; the browser never
+          // picks one on its own.
+          setActiveCompany(
+            data.companies.find(
+              (c: CompanyInfo) => c.id === data.activeCompanyId,
+            ) ?? data.companies[0],
+          )
         }
         setSessionLoaded(true)
       })
@@ -172,6 +174,40 @@ export function AppShell({ children }: { children: ReactNode }) {
     setToast(message)
     setTimeout(() => setToast(""), 3200)
   }, [])
+
+  /**
+   * Switches the active workspace. The server validates the selection against
+   * the user's own memberships and answers with the workspace and the role the
+   * user holds there, so the interface can never show a role the server does
+   * not grant.
+   */
+  const switchCompany = useCallback(
+    async (companyId: string) => {
+      try {
+        const res = await fetch(
+          `/api/companies?active=${encodeURIComponent(companyId)}`,
+        )
+        if (!res.ok) {
+          notify("Could not switch workspace.")
+          return
+        }
+        const data = await res.json().catch(() => null)
+        if (!data?.companies?.length) {
+          notify("Could not switch workspace.")
+          return
+        }
+        setCompanies(data.companies)
+        setActiveCompany(
+          data.companies.find(
+            (c: CompanyInfo) => c.id === data.activeCompanyId,
+          ) ?? null,
+        )
+      } catch {
+        notify("Could not switch workspace.")
+      }
+    },
+    [notify],
+  )
 
   const go = (screen: Screen) => {
     setSidebarOpen(false)
@@ -311,14 +347,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="company-switch"
               value={activeCompany?.id ?? ""}
               aria-label="Switch company"
-              onChange={(e) => {
-                const next = companies.find((c) => c.id === e.target.value)
-                if (next) setActiveCompany(next)
-              }}
+              onChange={(e) => switchCompany(e.target.value)}
             >
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} — {roleLabel[c.role] ?? c.role} ({c.plan})
                 </option>
               ))}
             </select>
